@@ -1,0 +1,16 @@
+{
+  "name": "gestao-uep-backend",
+  "version": "0.1.0",
+  "description": "API do sistema de gestão da UEP agropecuária",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
