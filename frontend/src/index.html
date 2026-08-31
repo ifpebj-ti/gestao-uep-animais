@@ -1,24 +1,287 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gestão UEP - Agropecuária</title>
-  <link rel="stylesheet" href="css/style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SISGEP</title>
+<link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header>
-    <h1>Gestão UEP - Agropecuária</h1>
-  </header>
+<div class="top-accent-bar"></div>
 
-  <main id="app">
-    <p>Sistema em construção.</p>
-  </main>
+<!-- ================= AUTENTICAÇÃO ================= -->
+<div id="authFlow">
+  <div class="auth-brand">
+    <div class="if-logo-lockup">
+      <div class="if-mark">
+        <span class="dot"></span><span class="g"></span><span class="g"></span>
+        <span class="g"></span><span class="g"></span><span class="e"></span>
+        <span class="g"></span><span class="g"></span><span class="g"></span>
+        <span class="g"></span><span class="g"></span><span class="e"></span>
+      </div>
+      <div class="if-wordmark">INSTITUTO<br>FEDERAL<small>Pernambuco</small></div>
+    </div>
+    <div style="font-size:13.5px;color:var(--gray-text);">SISGEP — Sistema de Gestão Pecuária</div>
+  </div>
 
-  <footer>
-    <p>&copy; 2026 - Projeto Integrador 7º Período</p>
-  </footer>
+  <!-- Seleção de perfil -->
+  <!-- BACKEND: cada card define o "role" enviado em POST /api/auth/login {role, email, senha} -->
+  <div class="auth-screen active" id="auth-role">
+    <div class="role-grid" id="roleGrid"></div>
+  </div>
 
-  <script src="js/main.js"></script>
+  <!-- Login -->
+  <!-- BACKEND: POST /api/auth/login -->
+  <div class="auth-screen" id="auth-login">
+    <div class="auth-back" onclick="showAuth('auth-role')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</div>
+    <div class="auth-card">
+      <h2 id="loginTitle">Entrar</h2>
+      <p class="sub" id="loginSub">Acesso restrito à comunidade do IFPE.</p>
+      <button type="button" class="google-btn" onclick="alert('Ação: iniciar OAuth com Google (a implementar no backend)')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9C16.66 14.2 17.64 11.9 17.64 9.2z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Continuar com Google
+      </button>
+      <div class="auth-divider">ou</div>
+      <form id="loginForm" onsubmit="event.preventDefault(); showAuth('auth-setor');">
+        <div class="auth-field">
+          <label for="loginEmail" id="loginEmailLabel">E-mail</label>
+          <input id="loginEmail" name="email" type="email" placeholder="seuemail@exemplo.com" required>
+        </div>
+        <div class="auth-field">
+          <label for="loginSenha">Senha</label>
+          <input id="loginSenha" name="senha" type="password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="auth-submit">Entrar</button>
+      </form>
+      <div class="auth-switch" id="cadastroSwitch">Ainda não tem conta? <a onclick="openCadastro()">Cadastre-se</a></div>
+    </div>
+  </div>
+
+  <!-- Cadastro (todos os perfis, exceto Administrador — conta provisionada pela instituição) -->
+  <!-- BACKEND: POST /api/auth/cadastro {role, nome, email, senha} — exigir domínio @ifpe.edu.br quando role=professor -->
+  <div class="auth-screen" id="auth-cadastro">
+    <div class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</div>
+    <div class="auth-card">
+      <h2 id="cadTitle">Cadastro</h2>
+      <p class="sub" id="cadSub">Preencha seus dados para criar sua conta.</p>
+      <form id="cadastroForm" onsubmit="event.preventDefault(); showAuth('auth-setor');">
+        <div class="auth-field">
+          <label for="cadNome">Nome completo</label>
+          <input id="cadNome" name="nome" type="text" placeholder="Seu nome completo" required>
+        </div>
+        <div class="auth-field">
+          <label for="cadEmail" id="cadEmailLabel">E-mail</label>
+          <input id="cadEmail" name="email" type="email" placeholder="seuemail@exemplo.com" required>
+          <div class="hint" id="cadHint" style="display:none;">Precisa terminar em @ifpe.edu.br</div>
+        </div>
+        <div class="auth-field"><label for="cadSenha">Senha</label><input id="cadSenha" type="password" placeholder="••••••••" required></div>
+        <div class="auth-field"><label for="cadSenha2">Confirmar senha</label><input id="cadSenha2" type="password" placeholder="••••••••" required></div>
+        <button type="submit" class="auth-submit">Cadastrar e entrar</button>
+      </form>
+      <div class="auth-switch">Já tem conta? <a onclick="showAuth('auth-login')">Entrar</a></div>
+    </div>
+  </div>
+
+  <!-- Seleção de UEP / Setor -->
+  <!-- BACKEND: setores vêm de GET /api/setores (vinculados ao usuário autenticado) -->
+  <div class="auth-screen" id="auth-setor">
+    <div class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</div>
+    <h2 style="margin-bottom:4px;">Selecione o setor</h2>
+    <p class="sub" style="margin-bottom:24px;color:var(--gray-text);font-size:13px;">Escolha a UEP que deseja acessar</p>
+    <div class="role-grid" id="setorGrid"></div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+<header class="app-header">
+  <div class="wrap">
+    <div class="header-bottom">
+      <div class="if-logo-lockup">
+        <div class="if-mark">
+          <span class="dot"></span><span class="g"></span><span class="g"></span>
+          <span class="g"></span><span class="g"></span><span class="e"></span>
+          <span class="g"></span><span class="g"></span><span class="g"></span>
+          <span class="g"></span><span class="g"></span><span class="e"></span>
+        </div>
+        <div class="if-wordmark">INSTITUTO<br>FEDERAL<small>Pernambuco</small></div>
+        <div class="system-sign">
+          <div>
+            <div class="name">SISGEP</div>
+            <div class="campus">Setor: <b id="setorAtual">—</b> <a onclick="trocarSetor()">trocar</a></div>
+          </div>
+        </div>
+      </div>
+      <div class="header-user">
+        <span>Olá, <b id="headerUserName">Usuário</b></span>
+        <div class="user-menu-wrap">
+          <button class="icon-btn" type="button" onclick="toggleUserMenu(event)">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <div class="user-menu" id="userMenu">
+            <div class="user-menu-head"><div class="n" id="menuUserName">Usuário</div><div class="r" id="menuUserRole">—</div></div>
+            <div class="user-menu-item" onclick="alert('Ação: abrir Meu perfil')">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg> Meu perfil
+            </div>
+            <div class="user-menu-item" onclick="alert('Ação: abrir Configurações')">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg> Configurações
+            </div>
+            <div class="user-menu-divider"></div>
+            <div class="user-menu-item danger" onclick="logout()">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg> Sair da conta
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subnav">
+  <div class="wrap">
+    <!-- Cada aba tem um id (tab-*) usado pelo script.js para saber qual
+         aba ativar por padrão e para aplicar as regras de visibilidade
+         por perfil (ver SEÇÃO 8 do script.js). -->
+    <div class="tabs">
+      <!-- .op-only = visível para todo mundo, MENOS o Administrador -->
+      <div class="tab op-only active" id="tab-painel" onclick="go('painel', event)"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg> Painel</div>
+      <div class="tab op-only" id="tab-rebanho" onclick="go('rebanho', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg> Gestão do Rebanho</div>
+      <div class="tab op-only" id="tab-estoque" onclick="go('estoque', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg> Estoque de Ração</div>
+      <!-- Notas Fiscais: visível para TODOS os perfis (sem classe de restrição) -->
+      <div class="tab" id="tab-notas" onclick="go('notas', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
+      <!-- .admin-only = visível SOMENTE para o Administrador -->
+      <div class="tab admin-only" id="tab-relatorios" onclick="go('relatorios', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h6"/></svg> Relatórios (PDF)</div>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- PAINEL -->
+  <div class="screen active" id="painel">
+    <div class="hero-banner">
+      <h1 id="heroGreeting">Bem-vindo(a)</h1>
+      <p>Resumo do setor <b id="heroSetor">—</b>: rebanho, estoque e atividades recentes.</p>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg></div><div><div class="kpi-num" id="kpiTotal">—</div><div class="kpi-label">Animais no setor</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon warn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-num">1</div><div class="kpi-label">Alerta de estoque</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><div><div class="kpi-num">3</div><div class="kpi-label">Notas fiscais recentes</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-num" id="kpiQuarentena">—</div><div class="kpi-label">Quarentena / atenção</div></div></div>
+    </div>
+    <div class="panel-cols">
+      <div class="panel-box">
+        <h2>Atividade recente</h2>
+        <div class="feed-item"><div class="feed-dot"></div><div><div id="feed1">—</div><div class="feed-time">há 2 horas</div></div></div>
+        <div class="feed-item"><div class="feed-dot"></div><div><div>NF-e anexada — compra de ração</div><div class="feed-time">há 5 horas</div></div></div>
+        <div class="feed-item"><div class="feed-dot warn"></div><div><div id="feed2">—</div><div class="feed-time">ontem</div></div></div>
+      </div>
+      <div class="panel-box">
+        <h2>Alertas</h2>
+        <div class="feed-item"><div class="feed-dot warn"></div><div><div><b>Estoque abaixo do nível crítico</b></div><div class="feed-time">verificar entrada de insumos</div></div></div>
+        <div class="quick-actions">
+          <button class="btn" onclick="go('rebanho', {currentTarget:document.querySelectorAll('.tab')[1]})">Novo Cadastro</button>
+          <button class="btn outline" onclick="go('estoque', {currentTarget:document.querySelectorAll('.tab')[2]})">Ver Estoque</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GESTÃO DO REBANHO -->
+  <!-- BACKEND: GET /api/setores/{setor}/animais?categoria=&raca=&fase=&disponibilidade=&busca= | POST /api/setores/{setor}/animais -->
+  <div class="screen" id="rebanho">
+    <div class="page-head"><div><h1 id="rebanhoTitulo">Gestão do Rebanho</h1><p>Listagem, censo e disponibilidade dos animais cadastrados</p></div></div>
+    <div class="section-label">Censo rápido por categoria</div>
+    <div class="counters" id="censoCategoria"></div>
+    <div class="section-label">Censo rápido por raça</div>
+    <div class="counters" id="censoRaca" style="margin-bottom:26px;"></div>
+
+    <div class="toolbar-row">
+      <div class="section-label" style="margin:0;">Filtros e busca</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn outline" onclick="go('relatorios', document.querySelector('.tab.admin-only') ? {currentTarget:document.querySelectorAll('.tab')[4]} : event)">Exportar PDF</button>
+        <button class="btn" onclick="alert('Ação: abrir formulário de Novo Cadastro / Entrada de Animal')"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Novo Cadastro / Entrada de Animal</button>
+      </div>
+    </div>
+
+    <form class="toolbar" onsubmit="return false;">
+      <div class="fake-input"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Buscar por brinco / ID"></div>
+      <select class="fake-select" id="filtroCategoria"><option value="">Categoria</option></select>
+      <select class="fake-select" id="filtroRaca"><option value="">Raça</option></select>
+      <select class="fake-select"><option value="">Fase</option><option>Lactante</option><option>Seca</option><option>Gestante</option><option>Postura</option></select>
+      <select class="fake-select"><option value="">Disponibilidade</option><option>Disponível</option><option>Vendido</option><option>Descartado</option><option>Quarentena</option></select>
+    </form>
+
+    <table>
+      <thead><tr><th>ID</th><th>Raça</th><th>Categoria</th><th>Fase</th><th>Status</th><th></th></tr></thead>
+      <tbody id="tabelaAnimais"></tbody>
+    </table>
+    <div class="pagination">
+      <span id="paginacaoInfo">—</span>
+      <div class="pages"><button>‹</button><button class="current">1</button><button>2</button><button>›</button></div>
+    </div>
+  </div>
+
+  <!-- ESTOQUE -->
+  <!-- BACKEND: GET /api/setores/{setor}/estoque | POST /api/setores/{setor}/estoque/movimentacao -->
+  <div class="screen" id="estoque">
+    <div class="page-head"><div><h1>Estoque de Ração</h1><p>Controle de entradas, saídas e nível de estoque do setor</p></div></div>
+    <div class="alert-banner warn">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div><strong id="estoqueInsumo">Nível crítico</strong>Estoque atual cobre poucos dias de consumo. Recomenda-se registrar entrada.</div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg></div><div><div class="kpi-num" id="estoqueNivel">—</div><div class="kpi-label" id="estoqueLabel">Nível atual</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg></div><div><div class="kpi-num" id="estoqueConsumo">—</div><div class="kpi-label">Consumo médio diário</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon warn"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-num">4 dias</div><div class="kpi-label">Previsão de duração</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon warn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/></svg></div><div><div class="kpi-num">Alerta</div><div class="kpi-label">Status</div></div></div>
+    </div>
+    <div class="toolbar-row"><div class="section-label" style="margin:0;">Movimentações</div><button class="btn" onclick="alert('Ação: abrir formulário de Registrar Entrada/Saída')">Registrar Entrada / Saída</button></div>
+    <table>
+      <thead><tr><th>Data</th><th>Tipo</th><th>Insumo</th><th>Quantidade</th><th>Responsável</th></tr></thead>
+      <tbody id="tabelaEstoque"></tbody>
+    </table>
+  </div>
+
+  <!-- NOTAS FISCAIS (somente Administrador) -->
+  <!-- BACKEND: GET /api/notas-fiscais | POST /api/notas-fiscais -->
+  <div class="screen" id="notas">
+    <div class="page-head"><div><h1>Notas Fiscais</h1><p>Notas vinculadas a compras de ração e entradas de animais</p></div></div>
+    <div class="counters" style="margin-bottom:22px;">
+      <div class="counter"><div class="n">3</div><div class="l">Total de notas</div></div>
+      <div class="counter sub"><div class="n">1</div><div class="l">Vinculadas a ração</div></div>
+      <div class="counter sub"><div class="n">1</div><div class="l">Vinculadas a animais</div></div>
+      <div class="counter sub"><div class="n">1</div><div class="l">Insumos veterinários</div></div>
+    </div>
+    <div class="nf-list">
+      <div class="nf-row"><span>NF-e 000482 · Compra de ração — Cooperativa Agro Sul</span><span class="meta">12/08/2026</span></div>
+      <div class="nf-row"><span>NF-e 000411 · Entrada de animais — Fazenda Boa Vista</span><span class="meta">03/08/2026</span></div>
+      <div class="nf-row"><span>NF-e 000397 · Compra de insumos veterinários</span><span class="meta">28/07/2026</span></div>
+    </div>
+    <div class="nf-empty" onclick="alert('Ação: abrir seletor de arquivo para anexar NF-e')"><div class="big">+ Anexar nota fiscal</div><div>vincular NF a uma compra de ração ou entrada de animal</div></div>
+  </div>
+
+  <!-- RELATÓRIOS (somente Administrador) -->
+  <!-- BACKEND: POST /api/relatorios/{tipo}/gerar -> retorna PDF -->
+  <div class="screen" id="relatorios">
+    <div class="page-head"><div><h1>Relatórios</h1><p>Gere relatórios em PDF a partir dos dados do setor</p></div></div>
+    <div class="report-grid">
+      <div class="report-card"><div class="r-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><h3>Censo geral</h3><p>Distribuição por categoria, raça e disponibilidade.</p><button class="btn" onclick="alert('Ação: gerar PDF — Censo geral')">Gerar PDF</button></div>
+      <div class="report-card"><div class="r-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><h3>Status reprodutivo</h3><p>Fase reprodutiva de cada animal, agrupado por categoria.</p><button class="btn" onclick="alert('Ação: gerar PDF — Status reprodutivo')">Gerar PDF</button></div>
+      <div class="report-card"><div class="r-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg></div><h3>Movimentação de estoque</h3><p>Entradas e saídas de ração no período.</p><button class="btn" onclick="alert('Ação: gerar PDF — Movimentação de estoque')">Gerar PDF</button></div>
+    </div>
+    <form class="toolbar" onsubmit="return false;">
+      <select class="fake-select"><option>Últimos 30 dias</option><option>Últimos 90 dias</option><option>Personalizado</option></select>
+      <select class="fake-select"><option>Todos os setores</option><option>Somente setor atual</option></select>
+      <button class="btn" style="margin-left:auto;" onclick="alert('Ação: gerar PDF personalizado')">Gerar relatório personalizado</button>
+    </form>
+  </div>
+
+</main>
+</div>
+
+<script src="js/script.js"></script>
 </body>
 </html>
