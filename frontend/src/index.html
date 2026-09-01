@@ -29,13 +29,19 @@
   <!-- Seleção de perfil -->
   <!-- BACKEND: cada card define o "role" enviado em POST /api/auth/login {role, email, senha} -->
   <div class="auth-screen active" id="auth-role">
-    <div class="role-grid" id="roleGrid"></div>
+    <div class="role-select-card">
+      <div class="role-select-head">
+        <h2>Como você vai entrar?</h2>
+        <p>Selecione seu perfil de acesso ao SISGEP</p>
+      </div>
+      <div id="roleGrid"></div>
+    </div>
   </div>
 
   <!-- Login -->
   <!-- BACKEND: POST /api/auth/login -->
   <div class="auth-screen" id="auth-login">
-    <div class="auth-back" onclick="showAuth('auth-role')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</div>
+    <div class="back-row"><button type="button" class="auth-back" onclick="showAuth('auth-role')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</button></div>
     <div class="auth-card">
       <h2 id="loginTitle">Entrar</h2>
       <p class="sub" id="loginSub">Acesso restrito à comunidade do IFPE.</p>
@@ -59,10 +65,10 @@
     </div>
   </div>
 
-  <!-- Cadastro (todos os perfis, exceto Administrador — conta provisionada pela instituição) -->
+  <!-- Cadastro (todos os perfis, exceto Diretoria — conta provisionada pela instituição) -->
   <!-- BACKEND: POST /api/auth/cadastro {role, nome, email, senha} — exigir domínio @ifpe.edu.br quando role=professor -->
   <div class="auth-screen" id="auth-cadastro">
-    <div class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</div>
+    <div class="back-row"><button type="button" class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</button></div>
     <div class="auth-card">
       <h2 id="cadTitle">Cadastro</h2>
       <p class="sub" id="cadSub">Preencha seus dados para criar sua conta.</p>
@@ -87,10 +93,10 @@
   <!-- Seleção de UEP / Setor -->
   <!-- BACKEND: setores vêm de GET /api/setores (vinculados ao usuário autenticado) -->
   <div class="auth-screen" id="auth-setor">
-    <div class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</div>
+    <div class="back-row wide"><button type="button" class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</button></div>
     <h2 style="margin-bottom:4px;">Selecione o setor</h2>
     <p class="sub" style="margin-bottom:24px;color:var(--gray-text);font-size:13px;">Escolha a UEP que deseja acessar</p>
-    <div class="role-grid" id="setorGrid"></div>
+    <div class="setor-grid" id="setorGrid"></div>
   </div>
 </div>
 
@@ -145,13 +151,13 @@
          aba ativar por padrão e para aplicar as regras de visibilidade
          por perfil (ver SEÇÃO 8 do script.js). -->
     <div class="tabs">
-      <!-- .op-only = visível para todo mundo, MENOS o Administrador -->
+      <!-- .op-only = visível para todo mundo, MENOS a Diretoria -->
       <div class="tab op-only active" id="tab-painel" onclick="go('painel', event)"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg> Painel</div>
       <div class="tab op-only" id="tab-rebanho" onclick="go('rebanho', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg> Gestão do Rebanho</div>
       <div class="tab op-only" id="tab-estoque" onclick="go('estoque', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg> Estoque de Ração</div>
       <!-- Notas Fiscais: visível para TODOS os perfis (sem classe de restrição) -->
       <div class="tab" id="tab-notas" onclick="go('notas', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
-      <!-- .admin-only = visível SOMENTE para o Administrador -->
+      <!-- .admin-only = visível SOMENTE para a Diretoria -->
       <div class="tab admin-only" id="tab-relatorios" onclick="go('relatorios', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h6"/></svg> Relatórios (PDF)</div>
     </div>
   </div>
@@ -201,7 +207,6 @@
     <div class="toolbar-row">
       <div class="section-label" style="margin:0;">Filtros e busca</div>
       <div style="display:flex;gap:10px;">
-        <button class="btn outline" onclick="go('relatorios', document.querySelector('.tab.admin-only') ? {currentTarget:document.querySelectorAll('.tab')[4]} : event)">Exportar PDF</button>
         <button class="btn" onclick="alert('Ação: abrir formulário de Novo Cadastro / Entrada de Animal')"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Novo Cadastro / Entrada de Animal</button>
       </div>
     </div>
@@ -245,7 +250,7 @@
     </table>
   </div>
 
-  <!-- NOTAS FISCAIS (somente Administrador) -->
+  <!-- NOTAS FISCAIS (somente Diretoria) -->
   <!-- BACKEND: GET /api/notas-fiscais | POST /api/notas-fiscais -->
   <div class="screen" id="notas">
     <div class="page-head"><div><h1>Notas Fiscais</h1><p>Notas vinculadas a compras de ração e entradas de animais</p></div></div>
@@ -263,7 +268,7 @@
     <div class="nf-empty" onclick="alert('Ação: abrir seletor de arquivo para anexar NF-e')"><div class="big">+ Anexar nota fiscal</div><div>vincular NF a uma compra de ração ou entrada de animal</div></div>
   </div>
 
-  <!-- RELATÓRIOS (somente Administrador) -->
+  <!-- RELATÓRIOS (somente Diretoria) -->
   <!-- BACKEND: POST /api/relatorios/{tipo}/gerar -> retorna PDF -->
   <div class="screen" id="relatorios">
     <div class="page-head"><div><h1>Relatórios</h1><p>Gere relatórios em PDF a partir dos dados do setor</p></div></div>
