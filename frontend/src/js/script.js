@@ -7,57 +7,70 @@
 
 /* =====================================================================
    1. CONFIGURAÇÃO — PERFIS DE USUÁRIO (ROLES)
-   Cada perfil define: rótulo exibido, se pode se autocadastrar,
-   se o e-mail precisa ser institucional (@ifpe.edu.br), e o ícone (SVG).
+   Cada perfil define: rótulo exibido, descrição curta (usada na tela
+   de seleção de perfil), se pode se autocadastrar, se o e-mail precisa
+   ser institucional (@ifpe.edu.br), e o ícone (SVG).
    ===================================================================== */
 var ROLES = {
   aluno: {
     label: 'Aluno',
+    desc: 'Consulta de dados e atividades do setor',
     cadastro: true,
     institucional: false,
     icon: 'M22 10L12 5 2 10l10 5 10-5z|M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5'
   },
   tecnico: {
     label: 'Técnico',
+    desc: 'Apoio técnico e operacional ao rebanho',
     cadastro: true,
     institucional: false,
     icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'
   },
   estagiario: {
     label: 'Estagiário',
+    desc: 'Atividades de campo e apoio ao setor',
     cadastro: true,
     institucional: false,
     icon: 'M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z|M2 13h20'
   },
   professor: {
     label: 'Professor',
+    desc: 'Orientação acadêmica e acompanhamento de projetos',
     cadastro: true,
     institucional: true, // exige e-mail @ifpe.edu.br no login e no cadastro
     icon: 'M12 3l9 4.5-9 4.5-9-4.5L12 3z|M3 12.5l9 4.5 9-4.5|M3 7.5v9'
   },
-  administrador: {
-    label: 'Administrador',
+  diretoria: {
+    label: 'Diretoria',
+    desc: 'Gestão de notas fiscais e relatórios institucionais',
     cadastro: false, // conta provisionada pela instituição, sem autocadastro
     institucional: false,
     icon: 'M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z'
   }
 };
 
-/* Somente o Administrador enxerga as abas "Notas Fiscais" e "Relatórios (PDF)".
-   Essas abas têm a classe .admin-only no HTML — ver toggleAdminTabs(). */
+/* Regras de visibilidade das abas por perfil (ver SEÇÃO 8 — toggleTabsByRole):
+   - .op-only  → abas "operacionais" (Painel, Gestão do Rebanho, Estoque de Ração).
+                 Visíveis para todos os perfis, EXCETO Diretoria.
+   - .admin-only → aba "Relatórios (PDF)". Visível SOMENTE para Diretoria.
+   - Notas Fiscais não tem classe: fica visível para todo mundo, sempre.
+   Resultado prático: a Diretoria só enxerga Notas Fiscais + Relatórios (PDF). */
 
 
 /* =====================================================================
    2. CONFIGURAÇÃO — SETORES / UEPs
-   Cada setor tem seus próprios dados de censo (categorias e raças),
-   insumo de ração e uma lista de animais de exemplo.
-   Trocar de setor não recarrega a página: renderSetor() repinta a
-   tela com os dados do setor escolhido.
+   Cada setor tem: rótulo, sigla (2 letras, vira o "monograma" colorido
+   na tela de seleção), cor do monograma, descrição curta, dados de
+   censo (categorias e raças), insumo de ração e uma lista de animais
+   de exemplo. Trocar de setor não recarrega a página: renderSetor()
+   repinta a tela com os dados do setor escolhido.
    ===================================================================== */
 var SETORES = {
   bovinocultura: {
     label: 'Bovinocultura',
-    icon: '🐄',
+    sigla: 'BV',
+    cor: '#2f9e41',
+    desc: 'Bovinos de corte e leite',
     categorias: { 'Vaca': 52, 'Bezerro(a)': 18, 'Desmamado': 21, 'Novilha': 14, 'Touro': 23 },
     racas: { 'Nelore': 60, 'Girolando': 40, 'Holandês': 28 },
     insumo: 'Ração bovina',
@@ -73,7 +86,9 @@ var SETORES = {
   },
   suinocultura: {
     label: 'Suinocultura',
-    icon: '🐖',
+    sigla: 'SU',
+    cor: '#1f7a6c',
+    desc: 'Produção e manejo de suínos',
     categorias: { 'Matriz': 34, 'Leitão': 86, 'Recria': 52, 'Terminação': 30, 'Reprodutor': 8 },
     racas: { 'Duroc': 70, 'Landrace': 90, 'Large White': 50 },
     insumo: 'Ração suína',
@@ -88,7 +103,9 @@ var SETORES = {
   },
   avicultura: {
     label: 'Avicultura',
-    icon: '🐔',
+    sigla: 'AV',
+    cor: '#6b8f2f',
+    desc: 'Aves de postura e corte',
     categorias: { 'Poedeira': 420, 'Pintainha': 150, 'Frango de corte': 60, 'Matriz': 10 },
     racas: { 'Leghorn': 300, 'Rhode Island': 250, 'Embrapa 051': 190 },
     insumo: 'Ração de postura',
@@ -102,7 +119,9 @@ var SETORES = {
   },
   cunicultura: {
     label: 'Cunicultura',
-    icon: '🐇',
+    sigla: 'CN',
+    cor: '#2f7a9e',
+    desc: 'Criação e manejo de coelhos',
     categorias: { 'Matriz': 24, 'Filhote': 40, 'Recria': 26, 'Reprodutor': 6 },
     racas: { 'Nova Zelândia': 40, 'Californiano': 36, 'Chinchila': 20 },
     insumo: 'Ração de coelhos',
@@ -153,6 +172,16 @@ function go(id, e) {
   if (e && e.currentTarget) e.currentTarget.classList.add('active');
 }
 
+/* Mostra um elemento (removendo .hidden) reiniciando a animação de entrada (.fade-in)
+   mesmo que ele já tenha sido exibido antes na mesma sessão — usado ao alternar
+   entre a tela de autenticação e o app (login, logout, trocar de setor). */
+function reveal(el) {
+  el.classList.remove('hidden');
+  el.classList.remove('fade-in');
+  void el.offsetWidth; // força o navegador a "esquecer" o estado anterior antes de reanimar
+  el.classList.add('fade-in');
+}
+
 
 /* =====================================================================
    4. TELA DE SELEÇÃO DE PERFIL E DE SETOR
@@ -165,9 +194,10 @@ function buildRoleGrid() {
   var html = '';
   for (var key in ROLES) {
     var r = ROLES[key];
-    html += '<div class="role-card" onclick="selectRole(\'' + key + '\')">' +
-              '<div class="role-icon">' + svgIcon(r.icon) + '</div>' +
-              '<h3>' + r.label + '</h3>' +
+    html += '<div class="role-row" onclick="selectRole(\'' + key + '\')">' +
+              '<div class="r-icon">' + svgIcon(r.icon) + '</div>' +
+              '<div class="r-text"><h3>' + r.label + '</h3><p>' + r.desc + '</p></div>' +
+              '<svg class="icon r-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
             '</div>';
   }
   document.getElementById('roleGrid').innerHTML = html;
@@ -177,9 +207,10 @@ function buildSetorGrid() {
   var html = '';
   for (var key in SETORES) {
     var s = SETORES[key];
-    html += '<div class="role-card" onclick="selectSetor(\'' + key + '\')">' +
-              '<div class="role-icon" style="font-size:22px;background:none;">' + s.icon + '</div>' +
-              '<h3>' + s.label + '</h3>' +
+    html += '<div class="setor-tile" onclick="selectSetor(\'' + key + '\')">' +
+              '<div class="setor-badge" style="background:' + s.cor + '">' + s.sigla + '</div>' +
+              '<h3>' + s.label + '</h3><p>' + s.desc + '</p>' +
+              '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
             '</div>';
   }
   document.getElementById('setorGrid').innerHTML = html;
@@ -240,7 +271,7 @@ function selectSetor(setor) {
 function trocarSetor() {
   document.getElementById('userMenu').classList.remove('show');
   document.getElementById('app').classList.add('hidden');
-  document.getElementById('authFlow').style.display = 'flex';
+  reveal(document.getElementById('authFlow'));
   showAuth('auth-setor');
 }
 
@@ -342,10 +373,17 @@ function renderSetor() {
    8. SESSÃO — entrar no app / sair
    ===================================================================== */
 
-/* Mostra/esconde as abas exclusivas do Administrador (Notas Fiscais, Relatórios) */
-function toggleAdminTabs() {
+/* Aplica as regras de visibilidade de aba descritas lá na SEÇÃO 1 (junto de ROLES.diretoria):
+   - Diretoria: esconde .op-only (Painel / Rebanho / Estoque), mostra .admin-only (Relatórios)
+   - Demais perfis: mostra .op-only, esconde .admin-only
+   - Notas Fiscais nunca é escondida (não tem nenhuma dessas duas classes) */
+function toggleTabsByRole() {
+  var isDiretoria = currentRole === 'diretoria';
+  document.querySelectorAll('.op-only').forEach(function (el) {
+    el.classList.toggle('hidden', isDiretoria);
+  });
   document.querySelectorAll('.admin-only').forEach(function (el) {
-    el.classList.toggle('hidden', currentRole !== 'administrador');
+    el.classList.toggle('hidden', !isDiretoria);
   });
 }
 
@@ -364,19 +402,23 @@ function enterApp() {
   document.getElementById('menuUserRole').textContent = ROLES[currentRole] ? ROLES[currentRole].label : currentRole;
   document.getElementById('heroGreeting').textContent = 'Bem-vindo(a) de volta, ' + displayName;
 
-  toggleAdminTabs();
+  toggleTabsByRole();
   renderSetor();
 
-  document.getElementById('authFlow').style.display = 'none';
-  document.getElementById('app').classList.remove('hidden');
-  go('painel', { currentTarget: document.querySelectorAll('.tab')[0] });
+  document.getElementById('authFlow').classList.add('hidden');
+  reveal(document.getElementById('app'));
+
+  // Diretoria não tem aba "Painel" — abre direto em Notas Fiscais.
+  // Os demais perfis abrem normalmente no Painel.
+  var telaInicial = (currentRole === 'diretoria') ? 'notas' : 'painel';
+  go(telaInicial, { currentTarget: document.getElementById('tab-' + telaInicial) });
 }
 
 /* Botão "Sair da conta" no menu do usuário */
 function logout() {
   document.getElementById('userMenu').classList.remove('show');
   document.getElementById('app').classList.add('hidden');
-  document.getElementById('authFlow').style.display = 'flex';
+  reveal(document.getElementById('authFlow'));
   showAuth('auth-role');
   document.getElementById('loginForm').reset();
   document.getElementById('cadastroForm').reset();
