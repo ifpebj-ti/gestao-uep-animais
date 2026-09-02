@@ -50,7 +50,7 @@
         Continuar com Google
       </button>
       <div class="auth-divider">ou</div>
-      <form id="loginForm" onsubmit="event.preventDefault(); showAuth('auth-setor');">
+      <form id="loginForm" onsubmit="event.preventDefault();">
         <div class="auth-field">
           <label for="loginEmail" id="loginEmailLabel">E-mail</label>
           <input id="loginEmail" name="email" type="email" placeholder="seuemail@exemplo.com" required>
@@ -72,7 +72,7 @@
     <div class="auth-card">
       <h2 id="cadTitle">Cadastro</h2>
       <p class="sub" id="cadSub">Preencha seus dados para criar sua conta.</p>
-      <form id="cadastroForm" onsubmit="event.preventDefault(); showAuth('auth-setor');">
+      <form id="cadastroForm" onsubmit="event.preventDefault();">
         <div class="auth-field">
           <label for="cadNome">Nome completo</label>
           <input id="cadNome" name="nome" type="text" placeholder="Seu nome completo" required>
