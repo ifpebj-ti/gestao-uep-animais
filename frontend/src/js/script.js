@@ -598,7 +598,7 @@ buildRoleGrid();
     });
   }
 
-
+})();
 
 /* =====================================================================
    11. MODAL DE CADASTRO DE ANIMAL
@@ -647,5 +647,3 @@ function salvarAnimal() {
     btn.textContent = 'Salvar';
   });
 }
-
-})();
