@@ -531,7 +531,8 @@ buildRoleGrid();
 /* =====================================================================
    10. HANDLERS DE FORMULÁRIO — login e cadastro (integração com API)
    ===================================================================== */
-document.addEventListener('DOMContentLoaded', function() {
+/* Script carregado no fim do <body> — DOM já está pronto, sem precisar de DOMContentLoaded */
+(function() {
 
   /* --- Login --- */
   var loginForm = document.getElementById('loginForm');
@@ -581,5 +582,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-});
-buildSetorGrid();
+})();
