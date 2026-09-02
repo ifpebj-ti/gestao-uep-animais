@@ -20,8 +20,27 @@ async function assertUepExists(uepId) {
 }
 
 export const animaisService = {
-  async list(filters) {
-    return animaisRepository.findAll(filters);
+  async list(filters = {}) {
+    // Sem paginacao explicita: mantem o retorno como array simples
+    if (filters.limit === undefined || filters.limit === null) {
+      return animaisRepository.findAll(filters);
+    }
+
+    const [data, total] = await Promise.all([
+      animaisRepository.findAll(filters),
+      animaisRepository.countTotal(filters),
+    ]);
+
+    const limit = filters.limit;
+    const offset = filters.offset ?? 0;
+    return {
+      data,
+      total,
+      limit,
+      offset,
+      page: Math.floor(offset / limit) + 1,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   },
 
   async getById(id) {
@@ -42,11 +61,12 @@ export const animaisService = {
 
   // Censo: total de animais por categoria/sexo, com os mesmos filtros da listagem
   async censo(filters) {
-    const [porCategoria, total] = await Promise.all([
+    const [porCategoria, porRaca, total] = await Promise.all([
       animaisRepository.countByCategoria(filters),
+      animaisRepository.countByRaca(filters),
       animaisRepository.countTotal(filters),
     ]);
-    return { total, porCategoria };
+    return { total, porCategoria, porRaca };
   },
 
   async create(data) {

@@ -411,9 +411,10 @@ function renderSetor() {
       var cat = row.categoria || '?';
       censoPorCat[cat] = (censoPorCat[cat] || 0) + (row.total || 0);
     });
-    // Raça: agrupa a partir da lista de animais
-    animais.forEach(function(a) {
-      if (a.raca) censoPorRaca[a.raca] = (censoPorRaca[a.raca] || 0) + 1;
+    // porRaca vem agregado do backend (conta o rebanho inteiro, não só a página)
+    (censo.porRaca || []).forEach(function(row) {
+      var r = row.raca || 'Não informada';
+      censoPorRaca[r] = (censoPorRaca[r] || 0) + (row.total || 0);
     });
 
     // Censo por categoria

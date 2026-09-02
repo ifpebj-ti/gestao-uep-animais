@@ -52,10 +52,20 @@ function buildFilters(filters = {}) {
 }
 
 export const animaisRepository = {
-  async findAll(filters) {
+  async findAll(filters = {}) {
     const { where, params } = buildFilters(filters);
+
+    // Paginacao opcional: sem limit, devolve tudo (compatibilidade)
+    let pagination = "";
+    if (filters.limit !== undefined && filters.limit !== null) {
+      params.push(filters.limit);
+      pagination += ` LIMIT $${params.length}`;
+      params.push(filters.offset ?? 0);
+      pagination += ` OFFSET $${params.length}`;
+    }
+
     const { rows } = await query(
-      `${BASE_SELECT} ${where} ORDER BY a.created_at DESC`,
+      `${BASE_SELECT} ${where} ORDER BY a.created_at DESC${pagination}`,
       params
     );
     return rows;
@@ -106,6 +116,21 @@ export const animaisRepository = {
        ${where}
        GROUP BY a.categoria, a.sexo
        ORDER BY a.categoria, a.sexo`,
+      params
+    );
+    return rows;
+  },
+
+  // Censo: contagem de animais agrupada por raca (Sprint 5)
+  async countByRaca(filters) {
+    const { where, params } = buildFilters(filters);
+    const sep = where ? `${where} AND` : "WHERE";
+    const { rows } = await query(
+      `SELECT COALESCE(a.raca, 'Nao informada') AS raca, COUNT(*)::int AS total
+       FROM animais a
+       ${sep} TRUE
+       GROUP BY COALESCE(a.raca, 'Nao informada')
+       ORDER BY total DESC, raca`,
       params
     );
     return rows;
