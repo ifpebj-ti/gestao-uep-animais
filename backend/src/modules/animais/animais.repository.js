@@ -78,22 +78,27 @@ export const animaisRepository = {
 
   // Identificadores são únicos: usados para localizar um animal específico
   async findByIdentifier({ brinco, corteAustraliano, sisbov, uepId }) {
-    const conditions = [];
+    // Os identificadores sao alternativos entre si (OR), mas o escopo da UEP
+    // e restritivo (AND) — sem o parenteses o uep_id entrava no OR e a busca
+    // devolvia a UEP inteira, furando o isolamento por setor.
+    const identificadores = [];
     const params = [];
 
     if (brinco) {
       params.push(brinco);
-      conditions.push(`a.brinco = $${params.length}`);
+      identificadores.push(`a.brinco = $${params.length}`);
     }
     if (corteAustraliano) {
       params.push(corteAustraliano);
-      conditions.push(`a.corte_australiano = $${params.length}`);
+      identificadores.push(`a.corte_australiano = $${params.length}`);
     }
     if (sisbov) {
       params.push(sisbov);
-      conditions.push(`a.sisbov = $${params.length}`);
+      identificadores.push(`a.sisbov = $${params.length}`);
     }
-    if (!conditions.length) return [];
+    if (!identificadores.length) return [];
+
+    const conditions = [`(${identificadores.join(" OR ")})`];
 
     if (uepId) {
       params.push(uepId);
@@ -101,7 +106,7 @@ export const animaisRepository = {
     }
 
     const { rows } = await query(
-      `${BASE_SELECT} WHERE ${conditions.join(" OR ")} ORDER BY a.created_at DESC`,
+      `${BASE_SELECT} WHERE ${conditions.join(" AND ")} ORDER BY a.created_at DESC`,
       params
     );
     return rows;
