@@ -598,4 +598,54 @@ buildRoleGrid();
     });
   }
 
+
+
+/* =====================================================================
+   11. MODAL DE CADASTRO DE ANIMAL
+   ===================================================================== */
+function abrirModalAnimal() {
+  document.getElementById('formAnimal').reset();
+  var modal = document.getElementById('modalAnimal');
+  modal.style.display = 'flex';
+}
+
+function fecharModalAnimal() {
+  document.getElementById('modalAnimal').style.display = 'none';
+}
+
+// Fecha ao clicar fora do painel
+document.getElementById('modalAnimal') && document.addEventListener('click', function(e) {
+  var modal = document.getElementById('modalAnimal');
+  if (e.target === modal) fecharModalAnimal();
+});
+
+function salvarAnimal() {
+  var btn = document.getElementById('btnSalvarAnimal');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  var payload = {
+    brinco:            document.getElementById('anBrinco').value.trim(),
+    categoria:         document.getElementById('anCategoria').value,
+    sexo:              document.getElementById('anSexo').value,
+    raca:              document.getElementById('anRaca').value.trim() || null,
+    data_nascimento:   document.getElementById('anNasc').value || null,
+    status_reprodutivo:document.getElementById('anStatus').value,
+    observacoes:       document.getElementById('anObs').value.trim() || null
+  };
+
+  apiFetch('/ueps/' + currentSetor + '/animais', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }).then(function() {
+    fecharModalAnimal();
+    renderSetor(); // recarrega a tabela
+  }).catch(function(err) {
+    alert('Erro ao salvar: ' + err.message);
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = 'Salvar';
+  });
+}
+
 })();
