@@ -1,4 +1,63 @@
 /* =====================================================================
+   0. API — configuração e helpers de comunicação com o backend
+   ===================================================================== */
+var API_BASE = 'http://localhost:3000/api';
+
+/* Mapa frontend-role → backend-role e vice-versa */
+var ROLE_MAP = {
+  aluno:      'ALUNO',
+  tecnico:    'TECNICO',
+  estagiario: 'ESTAGIARIO',
+  professor:  'PROFESSOR',
+  diretoria:  'ADMIN'
+};
+var ROLE_MAP_REVERSE = {
+  ALUNO:      'aluno',
+  TECNICO:    'tecnico',
+  ESTAGIARIO: 'estagiario',
+  PROFESSOR:  'professor',
+  ADMIN:      'diretoria'
+};
+
+/* Cores por tipo de UEP (fallback para UEPs sem cor cadastrada) */
+var TIPO_CORES = {
+  BOVINOCULTURA: '#2f9e41',
+  SUINOCULTURA:  '#1f7a6c',
+  AVICULTURA:    '#6b8f2f',
+  CUNICULTURA:   '#2f7a9e',
+  CAPRINOCULTURA:'#7a5c2f',
+  OVINOCULTURA:  '#5c2f7a',
+  LATICINIOS:    '#9e5c2f',
+  OUTRO:         '#555'
+};
+
+/* LocalStorage helpers */
+function getToken()  { return localStorage.getItem('sisgep_token'); }
+function setToken(t) { localStorage.setItem('sisgep_token', t); }
+function clearToken(){ localStorage.removeItem('sisgep_token'); }
+function getUser()   { try { return JSON.parse(localStorage.getItem('sisgep_user')); } catch(e) { return null; } }
+function setUser(u)  { localStorage.setItem('sisgep_user', JSON.stringify(u)); }
+function clearUser() { localStorage.removeItem('sisgep_user'); }
+
+/* Wrapper fetch com autenticação JWT e tratamento de erros */
+function apiFetch(endpoint, options) {
+  options = options || {};
+  options.headers = options.headers || {};
+  var token = getToken();
+  if (token) options.headers['Authorization'] = 'Bearer ' + token;
+  options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
+  return fetch(API_BASE + endpoint, options).then(function(res) {
+    if (!res.ok) {
+      return res.json().then(function(body) {
+        var msg = (body && body.message) ? body.message : 'Erro ' + res.status;
+        throw new Error(msg);
+      });
+    }
+    return res.json();
+  });
+}
+
+/* =====================================================================
    SISGEP — script.js
    Frontend estático (protótipo). Sem chamadas reais de API ainda —
    os pontos onde o backend deve entrar estão marcados com "BACKEND:".
@@ -146,6 +205,7 @@ var STATUS_TAGS = {
 /* Estado da sessão atual (só em memória — reseta ao recarregar a página) */
 var currentRole = '';
 var currentSetor = '';
+var currentSetorNome = '';
 
 
 /* =====================================================================
@@ -204,16 +264,28 @@ function buildRoleGrid() {
 }
 
 function buildSetorGrid() {
-  var html = '';
-  for (var key in SETORES) {
-    var s = SETORES[key];
-    html += '<div class="setor-tile" onclick="selectSetor(\'' + key + '\')">' +
-              '<div class="setor-badge" style="background:' + s.cor + '">' + s.sigla + '</div>' +
-              '<h3>' + s.label + '</h3><p>' + s.desc + '</p>' +
-              '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
-            '</div>';
-  }
-  document.getElementById('setorGrid').innerHTML = html;
+  var grid = document.getElementById('setorGrid');
+  grid.innerHTML = '<p style="padding:1rem;color:#888">Carregando UEPs…</p>';
+  apiFetch('/ueps').then(function(ueps) {
+    if (!ueps || ueps.length === 0) {
+      grid.innerHTML = '<p style="padding:1rem;color:#888">Nenhuma UEP cadastrada.</p>';
+      return;
+    }
+    var html = '';
+    ueps.forEach(function(u) {
+      var sigla = u.nome ? u.nome.slice(0, 2).toUpperCase() : '??';
+      var cor   = TIPO_CORES[u.tipo] || '#555';
+      var desc  = u.descricao || u.tipo || '';
+      html += '<div class="setor-tile" onclick="selectSetor(' + u.id + ',\'' + u.nome + '\')">' +
+                '<div class="setor-badge" style="background:' + cor + '">' + sigla + '</div>' +
+                '<h3>' + u.nome + '</h3><p>' + desc + '</p>' +
+                '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
+              '</div>';
+    });
+    grid.innerHTML = html;
+  }).catch(function(err) {
+    grid.innerHTML = '<p style="padding:1rem;color:#c00">Erro ao carregar UEPs: ' + err.message + '</p>';
+  });
 }
 
 
@@ -262,8 +334,9 @@ function openCadastro() {
 }
 
 /* Chamado ao clicar num card de setor/UEP — encerra o fluxo de autenticação e entra no app */
-function selectSetor(setor) {
-  currentSetor = setor;
+function selectSetor(setorId, setorNome) {
+  currentSetor = setorId;
+  currentSetorNome = setorNome;
   enterApp();
 }
 
@@ -299,73 +372,94 @@ document.addEventListener('click', function () {
    (ex.: GET /api/setores/{setor}/animais, /estoque, etc.).
    ===================================================================== */
 function renderSetor() {
-  var s = SETORES[currentSetor];
+  var uepId = currentSetor;
+  var uepNome = currentSetorNome || 'UEP';
 
-  var totalAnimais = 0;
-  for (var k in s.categorias) totalAnimais += s.categorias[k];
+  document.getElementById('setorAtual').textContent = uepNome;
+  document.getElementById('heroSetor').textContent = uepNome;
+  document.getElementById('rebanhoTitulo').textContent = 'Gestão do Rebanho — ' + uepNome;
 
-  // --- Cabeçalhos e KPIs que citam o setor atual ---
-  document.getElementById('setorAtual').textContent = s.label;
-  document.getElementById('heroSetor').textContent = s.label;
-  document.getElementById('rebanhoTitulo').textContent = 'Gestão do Rebanho — ' + s.label;
-  document.getElementById('kpiTotal').textContent = totalAnimais;
-  document.getElementById('kpiQuarentena').textContent = s.animais.filter(function (a) { return a[4] === 'quar'; }).length;
-  document.getElementById('feed1').innerHTML = '<b>' + s.animais[0][0] + '</b> foi cadastrado(a)';
-  document.getElementById('feed2').innerHTML = 'Animal movido para atenção/quarentena';
+  // Busca animais e censo em paralelo
+  Promise.all([
+    apiFetch('/ueps/' + uepId + '/animais'),
+    apiFetch('/ueps/' + uepId + '/animais/censo')
+  ]).then(function(results) {
+    var animais = Array.isArray(results[0]) ? results[0] : (results[0].data || []);
+    var censo   = results[1] || {};
 
-  // --- Censo rápido por categoria ---
-  var censoCategoriaHtml = '<div class="counter"><div class="n">' + totalAnimais + '</div><div class="l">Total</div></div>';
-  for (var categoria in s.categorias) {
-    censoCategoriaHtml += '<div class="counter sub"><div class="n">' + s.categorias[categoria] + '</div><div class="l">' + categoria + '</div></div>';
-  }
-  document.getElementById('censoCategoria').innerHTML = censoCategoriaHtml;
+    var total = censo.total || animais.length;
+    var emQuarentena = animais.filter(function(a) { return a.status_reprodutivo === 'DESCARTE'; }).length;
 
-  // --- Censo rápido por raça ---
-  var censoRacaHtml = '';
-  for (var raca in s.racas) {
-    censoRacaHtml += '<div class="counter sub"><div class="n">' + s.racas[raca] + '</div><div class="l">' + raca + '</div></div>';
-  }
-  document.getElementById('censoRaca').innerHTML = censoRacaHtml;
+    document.getElementById('kpiTotal').textContent = total;
+    document.getElementById('kpiQuarentena').textContent = emQuarentena;
 
-  // --- Opções dos filtros (categoria / raça) ---
-  var opcoesCategoria = '<option value="">Categoria</option>';
-  for (var c in s.categorias) opcoesCategoria += '<option>' + c + '</option>';
-  document.getElementById('filtroCategoria').innerHTML = opcoesCategoria;
+    if (animais.length > 0) {
+      document.getElementById('feed1').innerHTML = '<b>' + (animais[0].brinco || animais[0].id) + '</b> está cadastrado(a)';
+    }
+    document.getElementById('feed2').innerHTML = 'Dados carregados da API';
 
-  var opcoesRaca = '<option value="">Raça</option>';
-  for (var r in s.racas) opcoesRaca += '<option>' + r + '</option>';
-  document.getElementById('filtroRaca').innerHTML = opcoesRaca;
+    // Censo por categoria
+    var categorias = censo.porCategoria || {};
+    var censoCategoriaHtml = '<div class="counter"><div class="n">' + total + '</div><div class="l">Total</div></div>';
+    Object.keys(categorias).forEach(function(cat) {
+      censoCategoriaHtml += '<div class="counter sub"><div class="n">' + categorias[cat] + '</div><div class="l">' + cat + '</div></div>';
+    });
+    document.getElementById('censoCategoria').innerHTML = censoCategoriaHtml;
 
-  // --- Tabela de animais ---
-  var linhasTabela = '';
-  s.animais.forEach(function (animal) {
-    var id = animal[0], raca = animal[1], categoria = animal[2], fase = animal[3], statusKey = animal[4];
-    var tag = STATUS_TAGS[statusKey]; // [classeCss, textoExibido]
+    // Censo por raça
+    var racas = censo.porRaca || {};
+    var censoRacaHtml = '';
+    Object.keys(racas).forEach(function(raca) {
+      censoRacaHtml += '<div class="counter sub"><div class="n">' + racas[raca] + '</div><div class="l">' + raca + '</div></div>';
+    });
+    document.getElementById('censoRaca').innerHTML = censoRacaHtml || '<div class="counter sub"><div class="l">—</div></div>';
 
-    linhasTabela +=
-      '<tr>' +
-        '<td class="brinco">' + id + '</td>' +
-        '<td>' + raca + '</td>' +
-        '<td>' + categoria + '</td>' +
-        '<td>' + fase + '</td>' +
-        '<td><span class="tag ' + tag[0] + '">' + tag[1] + '</span></td>' +
-        '<td><span class="link-ver">ver</span></td>' +
-      '</tr>';
+    // Filtros
+    var opcoesCategoria = '<option value="">Categoria</option>';
+    Object.keys(categorias).forEach(function(c) { opcoesCategoria += '<option>' + c + '</option>'; });
+    document.getElementById('filtroCategoria').innerHTML = opcoesCategoria;
+
+    var opcoesRaca = '<option value="">Raça</option>';
+    Object.keys(racas).forEach(function(r) { opcoesRaca += '<option>' + r + '</option>'; });
+    document.getElementById('filtroRaca').innerHTML = opcoesRaca;
+
+    // Tabela de animais
+    var STATUS_LABEL = {
+      NAO_APLICAVEL: ['disp', 'Disponível'],
+      PRENHE:        ['disp', 'Prenhe'],
+      VAZIA:         ['disp', 'Vazia'],
+      LACTANTE:      ['disp', 'Lactante'],
+      EM_CRESCIMENTO:['disp', 'Em crescimento'],
+      DESCARTE:      ['desc', 'Descarte']
+    };
+    var linhasTabela = '';
+    animais.forEach(function(animal) {
+      var statusKey = animal.status_reprodutivo || 'NAO_APLICAVEL';
+      var tag = STATUS_LABEL[statusKey] || ['disp', statusKey];
+      linhasTabela +=
+        '<tr>' +
+          '<td class="brinco">' + (animal.brinco || animal.id) + '</td>' +
+          '<td>' + (animal.raca || '—') + '</td>' +
+          '<td>' + (animal.categoria || '—') + '</td>' +
+          '<td>' + (animal.sexo || '—') + '</td>' +
+          '<td><span class="tag ' + tag[0] + '">' + tag[1] + '</span></td>' +
+          '<td><span class="link-ver">ver</span></td>' +
+        '</tr>';
+    });
+    document.getElementById('tabelaAnimais').innerHTML = linhasTabela || '<tr><td colspan="6">Nenhum animal cadastrado.</td></tr>';
+    document.getElementById('paginacaoInfo').textContent = 'Mostrando ' + animais.length + ' de ' + total + ' animais';
+
+    // Estoque (placeholder — módulo de estoque será integrado futuramente)
+    document.getElementById('estoqueInsumo').textContent = 'Estoque — ' + uepNome;
+    document.getElementById('estoqueNivel').textContent = '—';
+    document.getElementById('estoqueLabel').textContent = 'Nível atual';
+    document.getElementById('estoqueConsumo').textContent = '—';
+    document.getElementById('tabelaEstoque').innerHTML = '<tr><td colspan="5">Módulo de estoque em breve.</td></tr>';
+
+  }).catch(function(err) {
+    document.getElementById('tabelaAnimais').innerHTML =
+      '<tr><td colspan="6" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
   });
-  document.getElementById('tabelaAnimais').innerHTML = linhasTabela;
-  document.getElementById('paginacaoInfo').textContent =
-    'Mostrando 1–' + s.animais.length + ' de ' + totalAnimais + ' animais';
-
-  // --- Estoque de ração do setor ---
-  document.getElementById('estoqueInsumo').textContent = 'Nível crítico — ' + s.insumo;
-  document.getElementById('estoqueNivel').textContent = s.nivel;
-  document.getElementById('estoqueLabel').textContent = 'Nível atual — ' + s.insumo;
-  document.getElementById('estoqueConsumo').textContent = s.consumo;
-
-  var consumoDiarioKg = s.consumo.split(' ')[0]; // extrai só o número de "95 kg/dia"
-  document.getElementById('tabelaEstoque').innerHTML =
-    '<tr><td>20/08/2026</td><td><span class="tag entrada">Entrada</span></td><td>' + s.insumo + '</td><td>500 kg</td><td>Sistema</td></tr>' +
-    '<tr><td>21/08/2026</td><td><span class="tag saida">Saída</span></td><td>' + s.insumo + '</td><td>' + consumoDiarioKg + ' kg</td><td>Sistema</td></tr>';
 }
 
 
@@ -391,11 +485,12 @@ function toggleTabsByRole() {
    BACKEND: hoje o "nome" exibido no cabeçalho vem só do que foi digitado
    no formulário local. Troque pelo nome retornado pela API após o login. */
 function enterApp() {
-  var email = document.getElementById('loginEmail').value || document.getElementById('cadEmail').value || '';
-  var nome = document.getElementById('cadNome').value || '';
-
-  var displayName = nome ? nome.split(' ')[0] : (email ? email.split('@')[0].split('.')[0] : 'Usuário');
-  displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+  var user = getUser();
+  var displayName = 'Usuário';
+  if (user && user.nome) {
+    displayName = user.nome.split(' ')[0];
+    displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+  }
 
   document.getElementById('headerUserName').textContent = displayName;
   document.getElementById('menuUserName').textContent = displayName;
@@ -408,14 +503,17 @@ function enterApp() {
   document.getElementById('authFlow').classList.add('hidden');
   reveal(document.getElementById('app'));
 
-  // Diretoria não tem aba "Painel" — abre direto em Notas Fiscais.
-  // Os demais perfis abrem normalmente no Painel.
   var telaInicial = (currentRole === 'diretoria') ? 'notas' : 'painel';
   go(telaInicial, { currentTarget: document.getElementById('tab-' + telaInicial) });
 }
 
 /* Botão "Sair da conta" no menu do usuário */
 function logout() {
+  clearToken();
+  clearUser();
+  currentRole = '';
+  currentSetor = '';
+  currentSetorNome = '';
   document.getElementById('userMenu').classList.remove('show');
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
@@ -429,4 +527,59 @@ function logout() {
    9. INICIALIZAÇÃO
    ===================================================================== */
 buildRoleGrid();
+
+/* =====================================================================
+   10. HANDLERS DE FORMULÁRIO — login e cadastro (integração com API)
+   ===================================================================== */
+document.addEventListener('DOMContentLoaded', function() {
+
+  /* --- Login --- */
+  var loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var email  = document.getElementById('loginEmail').value.trim();
+      var senha  = document.getElementById('loginSenha').value;
+      apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email, senha: senha })
+      }).then(function(data) {
+        setToken(data.token);
+        setUser(data.user);
+        var backendRole = data.user.role;
+        currentRole = ROLE_MAP_REVERSE[backendRole] || 'aluno';
+        buildSetorGrid();
+        showAuth('auth-setor');
+      }).catch(function(err) {
+        alert('Erro no login: ' + err.message);
+      });
+    });
+  }
+
+  /* --- Cadastro --- */
+  var cadastroForm = document.getElementById('cadastroForm');
+  if (cadastroForm) {
+    cadastroForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var nome   = document.getElementById('cadNome').value.trim();
+      var email  = document.getElementById('cadEmail').value.trim();
+      var senha  = document.getElementById('cadSenha').value;
+      var senha2 = document.getElementById('cadSenha2').value;
+      if (senha !== senha2) { alert('As senhas não coincidem.'); return; }
+      var backendRole = ROLE_MAP[currentRole] || 'ALUNO';
+      apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole })
+      }).then(function(data) {
+        setToken(data.token);
+        setUser(data.user);
+        buildSetorGrid();
+        showAuth('auth-setor');
+      }).catch(function(err) {
+        alert('Erro no cadastro: ' + err.message);
+      });
+    });
+  }
+
+});
 buildSetorGrid();
