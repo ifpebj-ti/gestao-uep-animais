@@ -206,6 +206,8 @@ var STATUS_TAGS = {
 var currentRole = '';
 var currentSetor = '';
 var currentSetorNome = '';
+var currentPage = 1;
+var PAGE_SIZE = 20;
 
 
 /* =====================================================================
@@ -342,6 +344,7 @@ function openCadastro() {
 function selectSetor(setorId, setorNome) {
   currentSetor = setorId;
   currentSetorNome = setorNome;
+  currentPage = 1;
   enterApp();
 }
 
@@ -385,11 +388,16 @@ function renderSetor() {
   document.getElementById('rebanhoTitulo').textContent = 'Gestão do Rebanho — ' + uepNome;
 
   // Busca animais e censo em paralelo
+  var qs = '?page=' + currentPage + '&limit=' + PAGE_SIZE;
   Promise.all([
-    apiFetch('/ueps/' + uepId + '/animais'),
+    apiFetch('/ueps/' + uepId + '/animais' + qs),
     apiFetch('/ueps/' + uepId + '/animais/censo')
   ]).then(function(results) {
-    var animais = Array.isArray(results[0]) ? results[0] : (results[0].data || []);
+    var resp    = results[0] || {};
+    var animais = Array.isArray(resp) ? resp : (resp.data || []);
+    var pagina  = Array.isArray(resp)
+      ? { page: 1, totalPages: 1, total: animais.length, offset: 0 }
+      : resp;
     var censo   = results[1] || {};
 
     var total = censo.total || animais.length;
@@ -464,7 +472,11 @@ function renderSetor() {
         '</tr>';
     });
     document.getElementById('tabelaAnimais').innerHTML = linhasTabela || '<tr><td colspan="6">Nenhum animal cadastrado.</td></tr>';
-    document.getElementById('paginacaoInfo').textContent = 'Mostrando ' + animais.length + ' de ' + total + ' animais';
+    var de = animais.length ? (pagina.offset || 0) + 1 : 0;
+    var ate = (pagina.offset || 0) + animais.length;
+    document.getElementById('paginacaoInfo').textContent =
+      'Mostrando ' + de + '–' + ate + ' de ' + (pagina.total || total) + ' animais';
+    renderPaginacao(pagina.page || 1, pagina.totalPages || 1);
 
     // Estoque (placeholder — módulo de estoque será integrado futuramente)
     document.getElementById('estoqueInsumo').textContent = 'Estoque — ' + uepNome;
@@ -640,11 +652,49 @@ function salvarAnimal() {
     body: JSON.stringify(payload)
   }).then(function() {
     fecharModalAnimal();
-    renderSetor(); // recarrega a tabela
+    currentPage = 1; // o novo animal entra no topo (ordem: created_at DESC)
+    renderSetor();
   }).catch(function(err) {
     alert('Erro ao salvar: ' + err.message);
   }).finally(function() {
     btn.disabled = false;
     btn.textContent = 'Salvar';
   });
+}
+
+
+/* =====================================================================
+   12. PAGINAÇÃO DA TABELA DE ANIMAIS
+   ===================================================================== */
+
+/* Desenha os botões ‹ 1 2 3 › com janela deslizante de no máximo 5 páginas */
+function renderPaginacao(page, totalPages) {
+  var box = document.getElementById('paginacaoBotoes');
+  if (!box) return;
+
+  if (totalPages <= 1) { box.innerHTML = ''; return; }
+
+  var html = '<button onclick="irParaPagina(' + (page - 1) + ')"' +
+             (page <= 1 ? ' disabled' : '') + '>\u2039</button>';
+
+  var inicio = Math.max(1, page - 2);
+  var fim    = Math.min(totalPages, inicio + 4);
+  inicio     = Math.max(1, fim - 4);
+
+  for (var i = inicio; i <= fim; i++) {
+    html += '<button onclick="irParaPagina(' + i + ')"' +
+            (i === page ? ' class="current"' : '') + '>' + i + '</button>';
+  }
+
+  html += '<button onclick="irParaPagina(' + (page + 1) + ')"' +
+          (page >= totalPages ? ' disabled' : '') + '>\u203A</button>';
+
+  box.innerHTML = html;
+}
+
+/* Troca de página e repinta a tabela */
+function irParaPagina(page) {
+  if (page < 1) return;
+  currentPage = page;
+  renderSetor();
 }
