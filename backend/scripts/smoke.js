@@ -300,8 +300,16 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
 
   await checa(5, "GET /animais/buscar acha pelo brinco", async () => {
     const { dados } = await api(`/ueps/${uepId}/animais/buscar?brinco=SMK-003`, { token: tokenAdmin, esperado: 200 });
-    assert(Array.isArray(dados) && dados.length >= 1, "busca por brinco nao retornou nada");
+    assert(Array.isArray(dados), "resposta nao e um array");
+    // Exatamente 1: se o escopo da UEP entrar no OR, a busca devolve o setor inteiro
+    assert(dados.length === 1, `esperado exatamente 1 resultado, veio ${dados.length}`);
     assert(dados[0].brinco === "SMK-003", `brinco esperado SMK-003, veio ${dados[0].brinco}`);
+  });
+
+  await checa(5, "Busca por brinco inexistente devolve vazio", async () => {
+    const { dados } = await api(`/ueps/${uepId}/animais/buscar?brinco=NAO-EXISTE`, { token: tokenAdmin, esperado: 200 });
+    assert(Array.isArray(dados) && dados.length === 0,
+      `esperado nenhum resultado, veio ${dados.length}`);
   });
 
   await checa(5, "PATCH animal atualiza o status reprodutivo", async () => {
