@@ -629,8 +629,8 @@ function salvarAnimal() {
     categoria:         document.getElementById('anCategoria').value,
     sexo:              document.getElementById('anSexo').value,
     raca:              document.getElementById('anRaca').value.trim() || null,
-    data_nascimento:   document.getElementById('anNasc').value || null,
-    status_reprodutivo:document.getElementById('anStatus').value,
+    dataNascimento:    document.getElementById('anNasc').value || null,
+    statusReprodutivo: document.getElementById('anStatus').value,
     observacoes:       document.getElementById('anObs').value.trim() || null
   };
 
