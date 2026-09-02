@@ -403,29 +403,40 @@ function renderSetor() {
     }
     document.getElementById('feed2').innerHTML = 'Dados carregados da API';
 
+    // censo.porCategoria é um array [{categoria, sexo, total}]
+    // Agrupa em {VACA: N, TOURO: N, ...}
+    var censoPorCat = {};
+    var censoPorRaca = {};
+    (censo.porCategoria || []).forEach(function(row) {
+      var cat = row.categoria || '?';
+      censoPorCat[cat] = (censoPorCat[cat] || 0) + (row.total || 0);
+    });
+    // Raça: agrupa a partir da lista de animais
+    animais.forEach(function(a) {
+      if (a.raca) censoPorRaca[a.raca] = (censoPorRaca[a.raca] || 0) + 1;
+    });
+
     // Censo por categoria
-    var categorias = censo.porCategoria || {};
     var censoCategoriaHtml = '<div class="counter"><div class="n">' + total + '</div><div class="l">Total</div></div>';
-    Object.keys(categorias).forEach(function(cat) {
-      censoCategoriaHtml += '<div class="counter sub"><div class="n">' + categorias[cat] + '</div><div class="l">' + cat + '</div></div>';
+    Object.keys(censoPorCat).forEach(function(cat) {
+      censoCategoriaHtml += '<div class="counter sub"><div class="n">' + censoPorCat[cat] + '</div><div class="l">' + cat + '</div></div>';
     });
     document.getElementById('censoCategoria').innerHTML = censoCategoriaHtml;
 
     // Censo por raça
-    var racas = censo.porRaca || {};
     var censoRacaHtml = '';
-    Object.keys(racas).forEach(function(raca) {
-      censoRacaHtml += '<div class="counter sub"><div class="n">' + racas[raca] + '</div><div class="l">' + raca + '</div></div>';
+    Object.keys(censoPorRaca).forEach(function(raca) {
+      censoRacaHtml += '<div class="counter sub"><div class="n">' + censoPorRaca[raca] + '</div><div class="l">' + raca + '</div></div>';
     });
     document.getElementById('censoRaca').innerHTML = censoRacaHtml || '<div class="counter sub"><div class="l">—</div></div>';
 
     // Filtros
     var opcoesCategoria = '<option value="">Categoria</option>';
-    Object.keys(categorias).forEach(function(c) { opcoesCategoria += '<option>' + c + '</option>'; });
+    Object.keys(censoPorCat).forEach(function(c) { opcoesCategoria += '<option>' + c + '</option>'; });
     document.getElementById('filtroCategoria').innerHTML = opcoesCategoria;
 
     var opcoesRaca = '<option value="">Raça</option>';
-    Object.keys(racas).forEach(function(r) { opcoesRaca += '<option>' + r + '</option>'; });
+    Object.keys(censoPorRaca).forEach(function(r) { opcoesRaca += '<option>' + r + '</option>'; });
     document.getElementById('filtroRaca').innerHTML = opcoesRaca;
 
     // Tabela de animais
