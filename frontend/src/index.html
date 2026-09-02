@@ -50,7 +50,7 @@
         Continuar com Google
       </button>
       <div class="auth-divider">ou</div>
-      <form id="loginForm" onsubmit="event.preventDefault(); showAuth('auth-setor');">
+      <form id="loginForm" onsubmit="event.preventDefault();">
         <div class="auth-field">
           <label for="loginEmail" id="loginEmailLabel">E-mail</label>
           <input id="loginEmail" name="email" type="email" placeholder="seuemail@exemplo.com" required>
@@ -72,7 +72,7 @@
     <div class="auth-card">
       <h2 id="cadTitle">Cadastro</h2>
       <p class="sub" id="cadSub">Preencha seus dados para criar sua conta.</p>
-      <form id="cadastroForm" onsubmit="event.preventDefault(); showAuth('auth-setor');">
+      <form id="cadastroForm" onsubmit="event.preventDefault();">
         <div class="auth-field">
           <label for="cadNome">Nome completo</label>
           <input id="cadNome" name="nome" type="text" placeholder="Seu nome completo" required>
@@ -207,7 +207,7 @@
     <div class="toolbar-row">
       <div class="section-label" style="margin:0;">Filtros e busca</div>
       <div style="display:flex;gap:10px;">
-        <button class="btn" onclick="alert('Ação: abrir formulário de Novo Cadastro / Entrada de Animal')"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Novo Cadastro / Entrada de Animal</button>
+        <button class="btn" onclick="abrirModalAnimal()"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Novo Cadastro / Entrada de Animal</button>
       </div>
     </div>
 
@@ -225,7 +225,7 @@
     </table>
     <div class="pagination">
       <span id="paginacaoInfo">—</span>
-      <div class="pages"><button>‹</button><button class="current">1</button><button>2</button><button>›</button></div>
+      <div class="pages" id="paginacaoBotoes"></div>
     </div>
   </div>
 
@@ -288,5 +288,67 @@
 </div>
 
 <script src="js/script.js"></script>
+
+  <!-- Modal: Cadastro de Animal -->
+  <div id="modalAnimal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+    <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(480px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+      <h2 style="margin:0 0 1.25rem;font-size:1.1rem;">Novo Animal</h2>
+      <form id="formAnimal" onsubmit="event.preventDefault(); salvarAnimal();">
+        <div style="display:grid;gap:.9rem;">
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">BRINCO / ID
+            <input id="anBrinco" type="text" placeholder="BV-0002" required
+              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;">
+            <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">CATEGORIA
+              <select id="anCategoria" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+                <option value="">Selecione</option>
+                <option>VACA</option><option>NOVILHA</option><option>BEZERRO</option>
+                <option>BEZERRA</option><option>TOURO</option><option>DESMAMADO</option>
+                <option>MATRIZ</option><option>REPRODUTOR</option><option>LEITAO</option>
+                <option>LEITOA</option><option>CACHACO</option><option>CORDEIRO</option>
+                <option>CABRITO</option><option>OUTRO</option>
+              </select>
+            </label>
+            <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">SEXO
+              <select id="anSexo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+                <option value="">Selecione</option>
+                <option>MACHO</option><option>FEMEA</option>
+              </select>
+            </label>
+          </div>
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">RAÇA
+            <input id="anRaca" type="text" placeholder="Nelore"
+              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          </label>
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">DATA DE NASCIMENTO
+            <input id="anNasc" type="date"
+              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          </label>
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">STATUS REPRODUTIVO
+            <select id="anStatus" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+              <option value="NAO_APLICAVEL">Não aplicável</option>
+              <option value="PRENHE">Prenhe</option>
+              <option value="VAZIA">Vazia</option>
+              <option value="LACTANTE">Lactante</option>
+              <option value="EM_CRESCIMENTO">Em crescimento</option>
+              <option value="DESCARTE">Descarte</option>
+            </select>
+          </label>
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">OBSERVAÇÕES
+            <textarea id="anObs" rows="2" placeholder="Opcional..."
+              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;resize:vertical;"></textarea>
+          </label>
+        </div>
+        <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
+          <button type="button" onclick="fecharModalAnimal()"
+            style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+          <button type="submit" id="btnSalvarAnimal"
+            style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>

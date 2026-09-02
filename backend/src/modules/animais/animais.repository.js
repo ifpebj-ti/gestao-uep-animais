@@ -52,10 +52,20 @@ function buildFilters(filters = {}) {
 }
 
 export const animaisRepository = {
-  async findAll(filters) {
+  async findAll(filters = {}) {
     const { where, params } = buildFilters(filters);
+
+    // Paginacao opcional: sem limit, devolve tudo (compatibilidade)
+    let pagination = "";
+    if (filters.limit !== undefined && filters.limit !== null) {
+      params.push(filters.limit);
+      pagination += ` LIMIT $${params.length}`;
+      params.push(filters.offset ?? 0);
+      pagination += ` OFFSET $${params.length}`;
+    }
+
     const { rows } = await query(
-      `${BASE_SELECT} ${where} ORDER BY a.created_at DESC`,
+      `${BASE_SELECT} ${where} ORDER BY a.created_at DESC${pagination}`,
       params
     );
     return rows;
@@ -68,22 +78,27 @@ export const animaisRepository = {
 
   // Identificadores são únicos: usados para localizar um animal específico
   async findByIdentifier({ brinco, corteAustraliano, sisbov, uepId }) {
-    const conditions = [];
+    // Os identificadores sao alternativos entre si (OR), mas o escopo da UEP
+    // e restritivo (AND) — sem o parenteses o uep_id entrava no OR e a busca
+    // devolvia a UEP inteira, furando o isolamento por setor.
+    const identificadores = [];
     const params = [];
 
     if (brinco) {
       params.push(brinco);
-      conditions.push(`a.brinco = $${params.length}`);
+      identificadores.push(`a.brinco = $${params.length}`);
     }
     if (corteAustraliano) {
       params.push(corteAustraliano);
-      conditions.push(`a.corte_australiano = $${params.length}`);
+      identificadores.push(`a.corte_australiano = $${params.length}`);
     }
     if (sisbov) {
       params.push(sisbov);
-      conditions.push(`a.sisbov = $${params.length}`);
+      identificadores.push(`a.sisbov = $${params.length}`);
     }
-    if (!conditions.length) return [];
+    if (!identificadores.length) return [];
+
+    const conditions = [`(${identificadores.join(" OR ")})`];
 
     if (uepId) {
       params.push(uepId);
@@ -91,7 +106,7 @@ export const animaisRepository = {
     }
 
     const { rows } = await query(
-      `${BASE_SELECT} WHERE ${conditions.join(" OR ")} ORDER BY a.created_at DESC`,
+      `${BASE_SELECT} WHERE ${conditions.join(" AND ")} ORDER BY a.created_at DESC`,
       params
     );
     return rows;
@@ -106,6 +121,21 @@ export const animaisRepository = {
        ${where}
        GROUP BY a.categoria, a.sexo
        ORDER BY a.categoria, a.sexo`,
+      params
+    );
+    return rows;
+  },
+
+  // Censo: contagem de animais agrupada por raca (Sprint 5)
+  async countByRaca(filters) {
+    const { where, params } = buildFilters(filters);
+    const sep = where ? `${where} AND` : "WHERE";
+    const { rows } = await query(
+      `SELECT COALESCE(a.raca, 'Nao informada') AS raca, COUNT(*)::int AS total
+       FROM animais a
+       ${sep} TRUE
+       GROUP BY COALESCE(a.raca, 'Nao informada')
+       ORDER BY total DESC, raca`,
       params
     );
     return rows;
