@@ -327,7 +327,12 @@ function openCadastro() {
 
   document.getElementById('cadEmailLabel').textContent = r.institucional ? 'E-mail institucional' : 'E-mail';
   document.getElementById('cadEmail').placeholder = r.institucional ? 'nome.sobrenome@ifpe.edu.br' : 'seuemail@exemplo.com';
-  document.getElementById('cadEmail').pattern = r.institucional ? '.+@ifpe\\.edu\\.br$' : '';
+  var cadEmailEl = document.getElementById('cadEmail');
+  if (r.institucional) {
+    cadEmailEl.setAttribute('pattern', '.+@ifpe\\.edu\\.br$');
+  } else {
+    cadEmailEl.removeAttribute('pattern');
+  }
   document.getElementById('cadHint').style.display = r.institucional ? 'block' : 'none';
 
   showAuth('auth-cadastro');
