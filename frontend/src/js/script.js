@@ -7,58 +7,75 @@
 
 /* =====================================================================
    1. CONFIGURAÇÃO — PERFIS DE USUÁRIO (ROLES)
-   Cada perfil define: rótulo exibido, descrição curta (usada na tela
-   de seleção de perfil), se pode se autocadastrar, se o e-mail precisa
-   ser institucional (@ifpe.edu.br), e o ícone (SVG).
+   Cada perfil define: rótulo exibido, descrição curta, se pode ser
+   escolhido no formulário público de cadastro, e se o e-mail precisa
+   ser institucional (@ifpe.edu.br). O perfil NÃO é mais escolhido na
+   tela de login — a tela de login é única, e o perfil vem da conta
+   correspondente ao e-mail digitado (ver USERS, mais abaixo).
    ===================================================================== */
 var ROLES = {
   aluno: {
     label: 'Aluno',
     desc: 'Consulta de dados e atividades do setor',
-    cadastro: true,
-    institucional: false,
-    icon: 'M22 10L12 5 2 10l10 5 10-5z|M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5'
+    cadastro: true, // aparece no seletor de perfil do formulário de cadastro
+    institucional: false
   },
   tecnico: {
     label: 'Técnico',
     desc: 'Apoio técnico e operacional ao rebanho',
     cadastro: true,
-    institucional: false,
-    icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'
+    institucional: false
   },
   estagiario: {
     label: 'Estagiário',
     desc: 'Atividades de campo e apoio ao setor',
     cadastro: true,
-    institucional: false,
-    icon: 'M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z|M2 13h20'
+    institucional: false
   },
   professor: {
     label: 'Professor',
     desc: 'Orientação acadêmica e acompanhamento de projetos',
     cadastro: true,
-    institucional: true, // exige e-mail @ifpe.edu.br no login e no cadastro
-    icon: 'M12 3l9 4.5-9 4.5-9-4.5L12 3z|M3 12.5l9 4.5 9-4.5|M3 7.5v9'
+    institucional: true // exige e-mail @ifpe.edu.br
   },
   diretoria: {
     label: 'Diretoria',
-    desc: 'Gestão de notas fiscais e relatórios institucionais',
-    cadastro: false, // conta provisionada pela instituição, sem autocadastro
-    institucional: false,
-    icon: 'M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z'
+    desc: 'Gestão de notas fiscais, relatórios e controle de acesso',
+    cadastro: false, // NÃO aparece no cadastro público — só é concedido via aba "Controle de Acesso"
+    institucional: false
   }
 };
 
-/* Regras de visibilidade das abas por perfil (ver SEÇÃO 8 — toggleTabsByRole):
-   - .op-only  → abas "operacionais" (Painel, Gestão do Rebanho, Estoque de Ração).
-                 Visíveis para todos os perfis, EXCETO Diretoria.
-   - .admin-only → aba "Relatórios (PDF)". Visível SOMENTE para Diretoria.
+/* Regras de visibilidade das abas por perfil (ver SEÇÃO 10 — toggleTabsByRole):
+   - .op-only    → abas "operacionais" (Painel, Gestão do Rebanho, Estoque de Ração).
+                   Visíveis para todos os perfis, EXCETO Diretoria.
+   - .admin-only → abas "Relatórios (PDF)" e "Controle de Acesso". Visíveis SOMENTE para Diretoria.
    - Notas Fiscais não tem classe: fica visível para todo mundo, sempre.
-   Resultado prático: a Diretoria só enxerga Notas Fiscais + Relatórios (PDF). */
+   Resultado prático: a Diretoria só enxerga Notas Fiscais + Relatórios + Controle de Acesso. */
 
 
 /* =====================================================================
-   2. CONFIGURAÇÃO — SETORES / UEPs
+   2. CONTAS DE DEMONSTRAÇÃO (USERS)
+   Como não existe backend ainda, esta lista faz o papel de um banco de
+   usuários em memória: é nela que handleLogin() procura o e-mail/senha
+   digitados, e é nela que a Diretoria mexe através da aba "Controle de
+   Acesso" (conceder/alterar/remover acesso).
+   ATENÇÃO: isso é só para demonstração — some ao recarregar a página,
+   e senha em texto puro aqui não tem NENHUM valor de segurança real.
+   BACKEND: troque por GET /api/usuarios e valide login/senha no servidor,
+   nunca no cliente.
+   ===================================================================== */
+var USERS = [
+  { nome: 'Cleber Silva', email: 'cleber.silva@ifpe.edu.br', senha: '123456', role: 'diretoria' },
+  { nome: 'Arsênio Souza', email: 'arsenio.souza@ifpe.edu.br', senha: '123456', role: 'professor' },
+  { nome: 'Marcos Lima', email: 'marcos.lima@ifpe.edu.br', senha: '123456', role: 'tecnico' },
+  { nome: 'Ana Beatriz', email: 'ana.beatriz@aluno.ifpe.edu.br', senha: '123456', role: 'estagiario' },
+  { nome: 'João Pedro', email: 'joao.pedro@aluno.ifpe.edu.br', senha: '123456', role: 'aluno' }
+];
+
+
+/* =====================================================================
+   3. CONFIGURAÇÃO — SETORES / UEPs
    Cada setor tem: rótulo, sigla (2 letras, vira o "monograma" colorido
    na tela de seleção), cor do monograma, descrição curta, dados de
    censo (categorias e raças), insumo de ração e uma lista de animais
@@ -144,21 +161,16 @@ var STATUS_TAGS = {
 };
 
 /* Estado da sessão atual (só em memória — reseta ao recarregar a página) */
+var currentUser = null; // referência ao objeto de USERS que está logado
 var currentRole = '';
 var currentSetor = '';
 
 
 /* =====================================================================
-   3. HELPERS DE INTERFACE
+   4. HELPERS DE INTERFACE
    ===================================================================== */
 
-/* Monta um <svg> a partir de uma string "pathA|pathB|pathC" (ver ROLES.icon) */
-function svgIcon(paths) {
-  var pathTags = paths.split('|').map(function (p) { return '<path d="' + p + '"/>'; }).join('');
-  return '<svg class="icon" viewBox="0 0 24 24">' + pathTags + '</svg>';
-}
-
-/* Troca qual .auth-screen está visível (seleção de perfil / login / cadastro / setor) */
+/* Troca qual .auth-screen está visível (login / cadastro / seleção de setor) */
 function showAuth(id) {
   document.querySelectorAll('.auth-screen').forEach(function (s) { s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
@@ -182,27 +194,23 @@ function reveal(el) {
   el.classList.add('fade-in');
 }
 
-
-/* =====================================================================
-   4. TELA DE SELEÇÃO DE PERFIL E DE SETOR
-   Os cards são gerados a partir de ROLES/SETORES em vez de escritos
-   à mão no HTML — assim, adicionar um novo perfil ou setor no futuro
-   é só adicionar uma entrada nos objetos acima.
-   ===================================================================== */
-
-function buildRoleGrid() {
-  var html = '';
-  for (var key in ROLES) {
-    var r = ROLES[key];
-    html += '<div class="role-row" onclick="selectRole(\'' + key + '\')">' +
-              '<div class="r-icon">' + svgIcon(r.icon) + '</div>' +
-              '<div class="r-text"><h3>' + r.label + '</h3><p>' + r.desc + '</p></div>' +
-              '<svg class="icon r-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
-            '</div>';
-  }
-  document.getElementById('roleGrid').innerHTML = html;
+/* Mostra/esconde a caixinha de erro de um formulário (login, cadastro, controle de acesso) */
+function showFormError(id, mensagem) {
+  var el = document.getElementById(id);
+  if (mensagem) el.textContent = mensagem;
+  el.classList.remove('hidden');
+}
+function hideFormError(id) {
+  document.getElementById(id).classList.add('hidden');
 }
 
+
+/* =====================================================================
+   5. TELA DE SELEÇÃO DE SETOR
+   Os tiles são gerados a partir de SETORES em vez de escritos à mão no
+   HTML — adicionar um novo setor no futuro é só adicionar uma entrada
+   no objeto acima.
+   ===================================================================== */
 function buildSetorGrid() {
   var html = '';
   for (var key in SETORES) {
@@ -218,50 +226,91 @@ function buildSetorGrid() {
 
 
 /* =====================================================================
-   5. FLUXO DE AUTENTICAÇÃO (login / cadastro)
-   BACKEND: os forms #loginForm e #cadastroForm hoje só chamam
-   showAuth('auth-setor') no onsubmit — troque isso por um fetch/axios
-   real para POST /api/auth/login e POST /api/auth/cadastro.
+   6. FLUXO DE AUTENTICAÇÃO (login único / cadastro com perfil embutido)
+   BACKEND: handleLogin/handleCadastro hoje validam tudo contra o array
+   USERS, no próprio navegador. Troque o corpo dessas duas funções por
+   chamadas fetch/axios para POST /api/auth/login e POST /api/auth/cadastro,
+   mantendo a mesma sequência (em caso de sucesso → showAuth('auth-setor')).
    ===================================================================== */
 
-/* Chamado ao clicar num card de perfil na tela inicial */
-function selectRole(role) {
+/* Procura em USERS uma conta cujo e-mail e senha batam com o informado.
+   Retorna o objeto do usuário, ou undefined se não achar. */
+function tentarLogin(email, senha) {
+  email = email.trim().toLowerCase();
+  return USERS.find(function (u) {
+    return u.email.toLowerCase() === email && u.senha === senha;
+  });
+}
+
+/* onsubmit do #loginForm */
+function handleLogin(e) {
+  e.preventDefault();
+  hideFormError('loginError');
+
+  var email = document.getElementById('loginEmail').value;
+  var senha = document.getElementById('loginSenha').value;
+  var user = tentarLogin(email, senha);
+
+  if (!user) {
+    showFormError('loginError'); // usa a mensagem padrão já escrita no HTML
+    return;
+  }
+
+  currentUser = user;
+  currentRole = user.role;
+  showAuth('auth-setor');
+}
+
+/* Preenche o <select> de perfil do formulário de cadastro — só com os
+   perfis que têm ROLES[x].cadastro = true (Diretoria fica de fora). */
+function buildCadastroRoleOptions() {
+  var html = '';
+  for (var key in ROLES) {
+    if (ROLES[key].cadastro) html += '<option value="' + key + '">' + ROLES[key].label + '</option>';
+  }
+  document.getElementById('cadRole').innerHTML = html;
+  updateCadastroEmailField(document.getElementById('cadRole').value);
+}
+
+/* Chamado quando o campo "Perfil" do cadastro muda — alterna o rótulo/
+   placeholder/validação do e-mail conforme o perfil exigir e-mail
+   institucional (hoje, só Professor). */
+function updateCadastroEmailField(role) {
+  var institucional = ROLES[role] && ROLES[role].institucional;
+  document.getElementById('cadEmailLabel').textContent = institucional ? 'E-mail institucional' : 'E-mail';
+  document.getElementById('cadEmail').placeholder = institucional ? 'nome.sobrenome@ifpe.edu.br' : 'seuemail@exemplo.com';
+  document.getElementById('cadEmail').pattern = institucional ? '.+@ifpe\\.edu\\.br$' : '';
+  document.getElementById('cadHint').style.display = institucional ? 'block' : 'none';
+}
+
+/* onsubmit do #cadastroForm */
+function handleCadastro(e) {
+  e.preventDefault();
+  hideFormError('cadError');
+
+  var nome = document.getElementById('cadNome').value.trim();
+  var role = document.getElementById('cadRole').value;
+  var email = document.getElementById('cadEmail').value.trim().toLowerCase();
+  var senha = document.getElementById('cadSenha').value;
+  var senha2 = document.getElementById('cadSenha2').value;
+
+  if (senha !== senha2) {
+    showFormError('cadError', 'As senhas digitadas não conferem.');
+    return;
+  }
+  if (USERS.some(function (u) { return u.email.toLowerCase() === email; })) {
+    showFormError('cadError', 'Já existe uma conta cadastrada com esse e-mail.');
+    return;
+  }
+
+  var novoUsuario = { nome: nome, email: email, senha: senha, role: role };
+  USERS.push(novoUsuario);
+  currentUser = novoUsuario;
   currentRole = role;
-  var r = ROLES[role];
-
-  document.getElementById('loginTitle').textContent = 'Entrar como ' + r.label;
-  document.getElementById('loginSub').textContent = role === 'professor'
-    ? 'Acesso restrito a servidores docentes do IFPE.'
-    : 'Acesso restrito à comunidade do IFPE — ' + r.label.toLowerCase() + '.';
-
-  // Campo de e-mail muda de rótulo/placeholder quando o perfil exige e-mail institucional
-  document.getElementById('loginEmailLabel').textContent = r.institucional ? 'E-mail institucional' : 'E-mail';
-  document.getElementById('loginEmail').placeholder = r.institucional ? 'nome.sobrenome@ifpe.edu.br' : 'seuemail@exemplo.com';
-
-  // Link "Cadastre-se" só aparece se o perfil permite autocadastro
-  document.getElementById('cadastroSwitch').style.display = r.cadastro ? 'block' : 'none';
-
-  showAuth('auth-login');
+  showAuth('auth-setor');
 }
 
-/* Chamado ao clicar em "Cadastre-se" dentro da tela de login */
-function openCadastro() {
-  var r = ROLES[currentRole];
-
-  document.getElementById('cadTitle').textContent = 'Cadastro de ' + r.label;
-  document.getElementById('cadSub').textContent = r.institucional
-    ? 'Cadastro validado pelo e-mail institucional do IFPE.'
-    : 'Preencha seus dados para criar sua conta de ' + r.label.toLowerCase() + '.';
-
-  document.getElementById('cadEmailLabel').textContent = r.institucional ? 'E-mail institucional' : 'E-mail';
-  document.getElementById('cadEmail').placeholder = r.institucional ? 'nome.sobrenome@ifpe.edu.br' : 'seuemail@exemplo.com';
-  document.getElementById('cadEmail').pattern = r.institucional ? '.+@ifpe\\.edu\\.br$' : '';
-  document.getElementById('cadHint').style.display = r.institucional ? 'block' : 'none';
-
-  showAuth('auth-cadastro');
-}
-
-/* Chamado ao clicar num card de setor/UEP — encerra o fluxo de autenticação e entra no app */
+/* Chamado ao clicar num tile de setor/UEP — encerra o fluxo de autenticação e entra no app */
 function selectSetor(setor) {
   currentSetor = setor;
   enterApp();
@@ -277,7 +326,7 @@ function trocarSetor() {
 
 
 /* =====================================================================
-   6. MENU DO USUÁRIO (cabeçalho do app)
+   7. MENU DO USUÁRIO (cabeçalho do app)
    ===================================================================== */
 
 function toggleUserMenu(e) {
@@ -292,7 +341,7 @@ document.addEventListener('click', function () {
 
 
 /* =====================================================================
-   7. RENDERIZAÇÃO DOS DADOS DO SETOR ATUAL
+   8. RENDERIZAÇÃO DOS DADOS DO SETOR ATUAL
    Preenche Painel, Gestão do Rebanho e Estoque com os dados de
    SETORES[currentSetor]. É chamada sempre que o setor muda.
    BACKEND: troque as leituras de SETORES[...] por dados vindos da API
@@ -370,11 +419,89 @@ function renderSetor() {
 
 
 /* =====================================================================
-   8. SESSÃO — entrar no app / sair
+   9. CONTROLE DE ACESSO (aba exclusiva da Diretoria)
+   Gerencia o array USERS: lista quem tem conta, permite trocar o perfil
+   de cada um, remover acesso, e conceder acesso novo (inclusive o
+   perfil Diretoria, que não existe no cadastro público).
+   BACKEND: troque USERS por dados de GET /api/usuarios, e cada ação
+   abaixo (alterar/remover/conceder) por PATCH/DELETE/POST correspondentes.
+   ===================================================================== */
+
+/* Monta a etiqueta colorida de perfil usada na tabela (ver .tag.role-* no CSS) */
+function roleBadge(role) {
+  var r = ROLES[role];
+  return '<span class="tag role-' + role + '">' + (r ? r.label : role) + '</span>';
+}
+
+/* Gera as <option> de um <select> de perfil. Se "todos" for true, inclui
+   também Diretoria — usado no formulário de "conceder novo acesso",
+   que é o único lugar onde faz sentido atribuir esse perfil. */
+function buildRoleOptions(selecionado, todos) {
+  var html = '';
+  for (var key in ROLES) {
+    if (!todos && !ROLES[key].cadastro) continue; // esconde Diretoria fora do formulário de concessão
+    html += '<option value="' + key + '"' + (key === selecionado ? ' selected' : '') + '>' + ROLES[key].label + '</option>';
+  }
+  return html;
+}
+
+/* Repinta a tabela de contas com acesso, uma linha por usuário em USERS */
+function renderControleAcesso() {
+  var linhas = '';
+  USERS.forEach(function (u, indice) {
+    linhas +=
+      '<tr>' +
+        '<td>' + u.nome + '</td>' +
+        '<td>' + u.email + '</td>' +
+        '<td>' + roleBadge(u.role) + '</td>' +
+        '<td><select class="fake-select" style="min-width:150px;" onchange="alterarAcesso(' + indice + ', this.value)">' +
+              buildRoleOptions(u.role, true) +
+            '</select></td>' +
+        '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + indice + ')">remover</span></td>' +
+      '</tr>';
+  });
+  document.getElementById('tabelaAcessos').innerHTML = linhas;
+}
+
+/* Chamado ao trocar o <select> de perfil de uma linha da tabela */
+function alterarAcesso(indice, novoRole) {
+  USERS[indice].role = novoRole;
+  renderControleAcesso();
+}
+
+/* Chamado ao clicar em "remover", numa linha da tabela */
+function removerAcesso(indice) {
+  USERS.splice(indice, 1);
+  renderControleAcesso();
+}
+
+/* onsubmit do formulário "Conceder novo acesso" */
+function concederAcesso() {
+  hideFormError('acessoError');
+
+  var nome = document.getElementById('naNome').value.trim();
+  var email = document.getElementById('naEmail').value.trim().toLowerCase();
+  var role = document.getElementById('naRole').value;
+  var senha = document.getElementById('naSenha').value;
+
+  if (USERS.some(function (u) { return u.email.toLowerCase() === email; })) {
+    showFormError('acessoError', 'Já existe um acesso cadastrado com esse e-mail.');
+    return;
+  }
+
+  USERS.push({ nome: nome, email: email, senha: senha, role: role });
+  document.getElementById('novoAcessoForm').reset();
+  renderControleAcesso();
+}
+
+
+/* =====================================================================
+   10. SESSÃO — entrar no app / sair
    ===================================================================== */
 
 /* Aplica as regras de visibilidade de aba descritas lá na SEÇÃO 1 (junto de ROLES.diretoria):
-   - Diretoria: esconde .op-only (Painel / Rebanho / Estoque), mostra .admin-only (Relatórios)
+   - Diretoria: esconde .op-only (Painel / Rebanho / Estoque), mostra .admin-only
+     (Relatórios + Controle de Acesso)
    - Demais perfis: mostra .op-only, esconde .admin-only
    - Notas Fiscais nunca é escondida (não tem nenhuma dessas duas classes) */
 function toggleTabsByRole() {
@@ -388,13 +515,11 @@ function toggleTabsByRole() {
 }
 
 /* Chamada ao final do login/cadastro + seleção de setor.
-   BACKEND: hoje o "nome" exibido no cabeçalho vem só do que foi digitado
-   no formulário local. Troque pelo nome retornado pela API após o login. */
+   BACKEND: hoje o nome/perfil exibidos vêm do objeto currentUser (que foi
+   preenchido em handleLogin/handleCadastro a partir do array USERS local).
+   Troque por dados retornados pela API de autenticação. */
 function enterApp() {
-  var email = document.getElementById('loginEmail').value || document.getElementById('cadEmail').value || '';
-  var nome = document.getElementById('cadNome').value || '';
-
-  var displayName = nome ? nome.split(' ')[0] : (email ? email.split('@')[0].split('.')[0] : 'Usuário');
+  var displayName = currentUser && currentUser.nome ? currentUser.nome.split(' ')[0] : 'Usuário';
   displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
   document.getElementById('headerUserName').textContent = displayName;
@@ -404,6 +529,7 @@ function enterApp() {
 
   toggleTabsByRole();
   renderSetor();
+  if (currentRole === 'diretoria') renderControleAcesso();
 
   document.getElementById('authFlow').classList.add('hidden');
   reveal(document.getElementById('app'));
@@ -419,14 +545,22 @@ function logout() {
   document.getElementById('userMenu').classList.remove('show');
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
-  showAuth('auth-role');
+
+  currentUser = null;
+  currentRole = '';
+  currentSetor = '';
+
+  showAuth('auth-login');
   document.getElementById('loginForm').reset();
   document.getElementById('cadastroForm').reset();
+  hideFormError('loginError');
+  hideFormError('cadError');
 }
 
 
 /* =====================================================================
-   9. INICIALIZAÇÃO
+   11. INICIALIZAÇÃO
    ===================================================================== */
-buildRoleGrid();
 buildSetorGrid();
+buildCadastroRoleOptions();
+document.getElementById('naRole').innerHTML = buildRoleOptions(null, true); // formulário de concessão inclui Diretoria
