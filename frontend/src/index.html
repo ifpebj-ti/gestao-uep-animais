@@ -26,33 +26,23 @@
     <div style="font-size:13.5px;color:var(--gray-text);">SISGEP — Sistema de Gestão Pecuária</div>
   </div>
 
-  <!-- Seleção de perfil -->
-  <!-- BACKEND: cada card define o "role" enviado em POST /api/auth/login {role, email, senha} -->
-  <div class="auth-screen active" id="auth-role">
-    <div class="role-select-card">
-      <div class="role-select-head">
-        <h2>Como você vai entrar?</h2>
-        <p>Selecione seu perfil de acesso ao SISGEP</p>
-      </div>
-      <div id="roleGrid"></div>
-    </div>
-  </div>
-
-  <!-- Login -->
-  <!-- BACKEND: POST /api/auth/login -->
-  <div class="auth-screen" id="auth-login">
-    <div class="back-row"><button type="button" class="auth-back" onclick="showAuth('auth-role')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</button></div>
+  <!-- Login — tela única. O perfil (role) não é escolhido aqui: vem do
+       cadastro correspondente ao e-mail/senha digitados (ver USERS e
+       tentarLogin() no script.js). -->
+  <!-- BACKEND: POST /api/auth/login {email, senha} -> retorna o usuário e seu perfil -->
+  <div class="auth-screen active" id="auth-login">
     <div class="auth-card">
-      <h2 id="loginTitle">Entrar</h2>
-      <p class="sub" id="loginSub">Acesso restrito à comunidade do IFPE.</p>
+      <h2>Entrar no SISGEP</h2>
+      <p class="sub">Acesso da comunidade do IFPE</p>
       <button type="button" class="google-btn" onclick="alert('Ação: iniciar OAuth com Google (a implementar no backend)')">
         <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9C16.66 14.2 17.64 11.9 17.64 9.2z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
         Continuar com Google
       </button>
       <div class="auth-divider">ou</div>
-      <form id="loginForm" onsubmit="event.preventDefault();">
+      <div class="auth-error hidden" id="loginError">E-mail ou senha inválidos.</div>
+      <form id="loginForm" onsubmit="handleLogin(event);">
         <div class="auth-field">
-          <label for="loginEmail" id="loginEmailLabel">E-mail</label>
+          <label for="loginEmail">E-mail</label>
           <input id="loginEmail" name="email" type="email" placeholder="seuemail@exemplo.com" required>
         </div>
         <div class="auth-field">
@@ -61,21 +51,28 @@
         </div>
         <button type="submit" class="auth-submit">Entrar</button>
       </form>
-      <div class="auth-switch" id="cadastroSwitch">Ainda não tem conta? <a onclick="openCadastro()">Cadastre-se</a></div>
+      <div class="auth-switch">Ainda não tem conta? <a onclick="showAuth('auth-cadastro')">Cadastre-se</a></div>
     </div>
   </div>
 
-  <!-- Cadastro (todos os perfis, exceto Diretoria — conta provisionada pela instituição) -->
-  <!-- BACKEND: POST /api/auth/cadastro {role, nome, email, senha} — exigir domínio @ifpe.edu.br quando role=professor -->
+  <!-- Cadastro — o perfil agora é um campo do próprio formulário (não uma
+       tela separada). Diretoria não aparece nas opções: esse acesso só é
+       concedido pela aba "Controle de Acesso" (ver ROLES[x].cadastro). -->
+  <!-- BACKEND: POST /api/auth/cadastro {nome, email, senha, role} — exigir domínio @ifpe.edu.br quando role=professor -->
   <div class="auth-screen" id="auth-cadastro">
     <div class="back-row"><button type="button" class="auth-back" onclick="showAuth('auth-login')"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Voltar</button></div>
     <div class="auth-card">
-      <h2 id="cadTitle">Cadastro</h2>
-      <p class="sub" id="cadSub">Preencha seus dados para criar sua conta.</p>
-      <form id="cadastroForm" onsubmit="event.preventDefault();">
+      <h2>Criar conta</h2>
+      <p class="sub">Preencha seus dados para acessar o SISGEP.</p>
+      <div class="auth-error hidden" id="cadError"></div>
+      <form id="cadastroForm" onsubmit="handleCadastro(event);">
         <div class="auth-field">
           <label for="cadNome">Nome completo</label>
           <input id="cadNome" name="nome" type="text" placeholder="Seu nome completo" required>
+        </div>
+        <div class="auth-field">
+          <label for="cadRole">Perfil</label>
+          <select id="cadRole" onchange="updateCadastroEmailField(this.value)"></select>
         </div>
         <div class="auth-field">
           <label for="cadEmail" id="cadEmailLabel">E-mail</label>
@@ -159,6 +156,7 @@
       <div class="tab" id="tab-notas" onclick="go('notas', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
       <!-- .admin-only = visível SOMENTE para a Diretoria -->
       <div class="tab admin-only" id="tab-relatorios" onclick="go('relatorios', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h6"/></svg> Relatórios (PDF)</div>
+      <div class="tab admin-only" id="tab-acessos" onclick="go('acessos', event)"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 10-6.32"/><path d="M17 14v3M17 21v.01"/><circle cx="17" cy="17.5" r="4"/></svg> Controle de Acesso</div>
     </div>
   </div>
 </nav>
@@ -207,7 +205,7 @@
     <div class="toolbar-row">
       <div class="section-label" style="margin:0;">Filtros e busca</div>
       <div style="display:flex;gap:10px;">
-        <button class="btn" onclick="abrirModalAnimal()"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Novo Cadastro / Entrada de Animal</button>
+        <button class="btn" onclick="alert('Ação: abrir formulário de Novo Cadastro / Entrada de Animal')"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Novo Cadastro / Entrada de Animal</button>
       </div>
     </div>
 
@@ -225,7 +223,7 @@
     </table>
     <div class="pagination">
       <span id="paginacaoInfo">—</span>
-      <div class="pages" id="paginacaoBotoes"></div>
+      <div class="pages"><button>‹</button><button class="current">1</button><button>2</button><button>›</button></div>
     </div>
   </div>
 
@@ -284,71 +282,31 @@
     </form>
   </div>
 
+  <!-- CONTROLE DE ACESSO (somente Diretoria) -->
+  <!-- BACKEND: GET/POST/PATCH/DELETE /api/usuarios — gerenciar quem tem acesso e com qual perfil -->
+  <div class="screen" id="acessos">
+    <div class="page-head"><div><h1>Controle de Acesso</h1><p>Gerencie quais e-mails têm acesso ao sistema e qual o perfil de cada um</p></div></div>
+
+    <div class="section-label">Contas com acesso</div>
+    <table style="margin-bottom:22px;">
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil atual</th><th>Alterar perfil</th><th></th></tr></thead>
+      <tbody id="tabelaAcessos"></tbody>
+    </table>
+
+    <div class="section-label">Conceder novo acesso</div>
+    <form class="toolbar" id="novoAcessoForm" onsubmit="event.preventDefault(); concederAcesso();">
+      <div class="fake-input"><input id="naNome" type="text" placeholder="Nome completo" required></div>
+      <div class="fake-input"><input id="naEmail" type="email" placeholder="E-mail" required></div>
+      <select class="fake-select" id="naRole"></select>
+      <div class="fake-input"><input id="naSenha" type="password" placeholder="Senha temporária" required></div>
+      <button type="submit" class="btn"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Conceder acesso</button>
+    </form>
+    <div class="auth-error hidden" id="acessoError" style="max-width:none;margin-top:12px;"></div>
+  </div>
+
 </main>
 </div>
 
 <script src="js/script.js"></script>
-
-  <!-- Modal: Cadastro de Animal -->
-  <div id="modalAnimal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
-    <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(480px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
-      <h2 style="margin:0 0 1.25rem;font-size:1.1rem;">Novo Animal</h2>
-      <form id="formAnimal" onsubmit="event.preventDefault(); salvarAnimal();">
-        <div style="display:grid;gap:.9rem;">
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">BRINCO / ID
-            <input id="anBrinco" type="text" placeholder="BV-0002" required
-              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
-          </label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;">
-            <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">CATEGORIA
-              <select id="anCategoria" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
-                <option value="">Selecione</option>
-                <option>VACA</option><option>NOVILHA</option><option>BEZERRO</option>
-                <option>BEZERRA</option><option>TOURO</option><option>DESMAMADO</option>
-                <option>MATRIZ</option><option>REPRODUTOR</option><option>LEITAO</option>
-                <option>LEITOA</option><option>CACHACO</option><option>CORDEIRO</option>
-                <option>CABRITO</option><option>OUTRO</option>
-              </select>
-            </label>
-            <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">SEXO
-              <select id="anSexo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
-                <option value="">Selecione</option>
-                <option>MACHO</option><option>FEMEA</option>
-              </select>
-            </label>
-          </div>
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">RAÇA
-            <input id="anRaca" type="text" placeholder="Nelore"
-              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
-          </label>
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">DATA DE NASCIMENTO
-            <input id="anNasc" type="date"
-              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
-          </label>
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">STATUS REPRODUTIVO
-            <select id="anStatus" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
-              <option value="NAO_APLICAVEL">Não aplicável</option>
-              <option value="PRENHE">Prenhe</option>
-              <option value="VAZIA">Vazia</option>
-              <option value="LACTANTE">Lactante</option>
-              <option value="EM_CRESCIMENTO">Em crescimento</option>
-              <option value="DESCARTE">Descarte</option>
-            </select>
-          </label>
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">OBSERVAÇÕES
-            <textarea id="anObs" rows="2" placeholder="Opcional..."
-              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;resize:vertical;"></textarea>
-          </label>
-        </div>
-        <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
-          <button type="button" onclick="fecharModalAnimal()"
-            style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
-          <button type="submit" id="btnSalvarAnimal"
-            style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
 </body>
 </html>
