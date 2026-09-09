@@ -1,4 +1,4 @@
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Atualiza pacotes do SO para corrigir vulnerabilidades criticas conhecidas
 # (ex.: CVE do openssl/libcrypto/libssl) antes de publicar a imagem.
