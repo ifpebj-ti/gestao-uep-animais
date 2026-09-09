@@ -258,6 +258,7 @@ function handleLogin(e) {
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || 'aluno';
     showAuth('auth-setor');
+    buildSetorGrid();
   }).catch(function(err) {
     showFormError('loginError', err.message);
   });
@@ -318,6 +319,7 @@ function handleCadastro(e) {
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || role;
     showAuth('auth-setor');
+    buildSetorGrid();
   }).catch(function(err) {
     showFormError('cadError', err.message);
   });
@@ -337,6 +339,7 @@ function trocarSetor() {
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
   showAuth('auth-setor');
+  buildSetorGrid();
 }
 
 
