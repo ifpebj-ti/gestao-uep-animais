@@ -1,0 +1,314 @@
+[
+  {
+    "title": "US-01 — Autocadastro de usuário por perfil",
+    "body": "**Como** visitante do sistema, **quero** me cadastrar escolhendo meu perfil (Aluno, Técnico,\nEstagiário ou Professor), **para** acessar o sistema com as permissões corretas desde o\nprimeiro acesso.\n\n**Critérios de aceite**\n- Professor exige e-mail institucional (`@ifpe.edu.br`); os demais perfis aceitam qualquer e-mail.\n- Diretoria (ADMIN) não pode ser escolhida no autocadastro público.\n- E-mail já cadastrado é rejeitado com mensagem clara.\n- Senha e confirmação de senha devem coincidir.\n- Ao concluir, o usuário entra automaticamente no sistema (token emitido).\n\n---\n_Épico: `epic:autenticacao` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:autenticacao",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-02 — Login único com token de sessão",
+    "body": "**Como** usuário cadastrado, **quero** fazer login com e-mail e senha, **para** acessar minha\nárea de trabalho já com o perfil correto aplicado, sem escolher o perfil manualmente.\n\n**Critérios de aceite**\n- Credenciais inválidas retornam erro sem expor qual campo está errado.\n- Token JWT é emitido e persiste a sessão entre recarregamentos de página.\n- O perfil do usuário logado determina quais abas ficam visíveis.\n\n---\n_Épico: `epic:autenticacao` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:autenticacao",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-03 — Diretoria concede/altera/remove acesso de usuários",
+    "body": "**Como** Diretoria, **quero** ver todos os usuários com acesso ao sistema, mudar o perfil de\nqualquer um deles ou remover o acesso, **para** administrar quem pode usar o sistema sem\ndepender de acesso direto ao banco de dados.\n\n**Critérios de aceite**\n- Apenas o perfil Diretoria/ADMIN acessa a aba \"Controle de Acesso\".\n- Trocar o perfil de um usuário na tabela reflete imediatamente (persistido via API).\n- Remover o acesso de um usuário impede logins futuros dele.\n- É possível conceder um novo acesso, inclusive com o perfil Diretoria (única forma de criar\n  outro ADMIN, já que ele não aparece no autocadastro público).\n\n---\n_Épico: `epic:autenticacao` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:autenticacao",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-04 — Recuperação de senha",
+    "body": "**Como** usuário que esqueceu a senha, **quero** solicitar uma redefinição por e-mail,\n**para** recuperar o acesso sem depender de um administrador.\n\n**Critérios de aceite**\n- Fluxo de \"esqueci minha senha\" gera um token de redefinição com expiração.\n- O token só pode ser usado uma vez.\n- A nova senha respeita a política mínima (≥ 6 caracteres).\n\n---\n_Épico: `epic:autenticacao` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:autenticacao",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-05 — Troca de senha pelo usuário logado",
+    "body": "**Como** usuário autenticado, **quero** trocar minha própria senha a qualquer momento,\n**para** manter minha conta segura.\n\n**Critérios de aceite**\n- Exige a senha atual para confirmar a troca.\n- Nova senha respeita a política mínima.\n- Existe uma tela/opção visível no menu do usuário (hoje só existe o endpoint no backend).\n\n---\n_Épico: `epic:autenticacao` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:autenticacao",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-06 — Listar UEPs disponíveis",
+    "body": "**Como** usuário autenticado, **quero** ver a lista de UEPs cadastradas ao entrar no sistema,\n**para** escolher em qual setor vou trabalhar.\n\n**Critérios de aceite**\n- A tela de seleção de setor busca as UEPs reais do banco (não mais dados fixos).\n- Cada UEP mostra nome, tipo e uma sigla/cor de identificação.\n\n---\n_Épico: `epic:ueps` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:ueps",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-07 — Cadastrar nova UEP",
+    "body": "**Como** ADMIN, PROFESSOR ou TECNICO, **quero** cadastrar uma nova UEP informando nome, tipo\ne descrição, **para** expandir os setores geridos pelo sistema sem precisar mexer no banco\ndiretamente.\n\n**Critérios de aceite**\n- Tipo é validado contra a lista de tipos aceitos (Bovinocultura, Suinocultura, etc.).\n- ALUNO e ESTAGIARIO não conseguem criar UEP (RBAC).\n- Existe uma tela no frontend para isso (hoje só é possível via API).\n\n---\n_Épico: `epic:ueps` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:ueps",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-08 — Editar dados de uma UEP",
+    "body": "**Como** ADMIN, PROFESSOR ou TECNICO, **quero** editar nome, tipo ou descrição de uma UEP\nexistente, **para** manter as informações atualizadas.\n\n**Critérios de aceite**\n- Alterações são refletidas imediatamente na tela de seleção de setor.\n- Existe uma tela no frontend para isso (hoje só é possível via API).\n\n---\n_Épico: `epic:ueps` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:ueps",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-09 — Remover uma UEP",
+    "body": "**Como** ADMIN, **quero** remover uma UEP que não está mais em uso, **para** manter o sistema\norganizado.\n\n**Critérios de aceite**\n- Remoção é bloqueada ou avisa claramente se a UEP ainda tem animais vinculados.\n- Existe uma tela no frontend para isso (hoje só é possível via API).\n\n---\n_Épico: `epic:ueps` · Prioridade: `prioridade:baixa`_",
+    "labels": [
+      "epic:ueps",
+      "prioridade:baixa"
+    ]
+  },
+  {
+    "title": "US-10 — Listar animais da UEP com paginação",
+    "body": "**Como** usuário do setor, **quero** ver a lista de animais cadastrados na UEP, paginada,\n**para** não sobrecarregar a tela quando o rebanho for grande.\n\n**Critérios de aceite**\n- A tabela busca os dados reais da API (`GET /ueps/:id/animais`).\n- Os botões de página anterior/próxima funcionam e mostram o total correto.\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-11 — Cadastrar novo animal",
+    "body": "**Como** TECNICO, PROFESSOR ou ADMIN, **quero** cadastrar um novo animal informando brinco,\ncategoria, sexo, raça, data de nascimento e status reprodutivo, **para** manter o rebanho\natualizado.\n\n**Critérios de aceite**\n- Categoria, sexo e status reprodutivo são validados contra os valores aceitos.\n- O animal aparece na tabela imediatamente após o cadastro.\n- ALUNO e ESTAGIARIO não conseguem cadastrar (RBAC).\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-12 — Censo agregado por categoria e raça",
+    "body": "**Como** usuário do setor, **quero** ver o total de animais agrupado por categoria e por\nraça, **para** entender a composição do rebanho sem precisar contar manualmente.\n\n**Critérios de aceite**\n- Os números batem com os filtros aplicados na tabela (quando houver filtro ativo).\n- O censo é recalculado no backend, não estimado no navegador.\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-13 — Ver detalhamento de um animal específico",
+    "body": "**Como** usuário do setor, **quero** clicar em \"ver\" na tabela e abrir os dados completos de\num animal (incluindo histórico e status reprodutivo em destaque), **para** acompanhar sua\nsituação individual sem depender só da linha resumida da tabela.\n\n**Critérios de aceite**\n- Modal ou tela dedicada mostra todos os campos do animal.\n- O status reprodutivo aparece destacado (badge colorido).\n- A partir dessa tela é possível acionar a edição (US-14).\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-14 — Editar dados de um animal",
+    "body": "**Como** TECNICO, PROFESSOR ou ADMIN, **quero** editar os dados de um animal já cadastrado,\n**para** corrigir erros ou atualizar informações (ex.: mudança de status reprodutivo).\n\n**Critérios de aceite**\n- Formulário de edição reaproveita os mesmos campos e validações do cadastro.\n- ALUNO e ESTAGIARIO não conseguem editar (RBAC).\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-15 — Remover um animal",
+    "body": "**Como** TECNICO, PROFESSOR ou ADMIN, **quero** remover um registro de animal incorreto ou\nduplicado, **para** manter a base de dados confiável.\n\n**Critérios de aceite**\n- Pede confirmação antes de remover.\n- ALUNO e ESTAGIARIO não conseguem remover (RBAC).\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:baixa`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:baixa"
+    ]
+  },
+  {
+    "title": "US-16 — Filtrar animais por categoria, raça, status e disponibilidade",
+    "body": "**Como** usuário do setor, **quero** aplicar filtros na tabela de animais, **para** localizar\nrapidamente um subconjunto do rebanho (ex.: só fêmeas prenhes).\n\n**Critérios de aceite**\n- Os `<select>` de categoria e raça já existem na tela; falta disparar a requisição filtrada\n  à API ao selecionar um valor.\n- Mais de um filtro pode ser combinado ao mesmo tempo.\n- A paginação respeita o filtro ativo.\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-17 — Buscar animal por identificador",
+    "body": "**Como** usuário do setor, **quero** digitar um brinco, corte australiano ou SISBOV na busca,\n**para** encontrar um animal específico sem navegar pela tabela toda.\n\n**Critérios de aceite**\n- Usa o endpoint já existente (`GET /animais/buscar`).\n- Busca funciona mesmo com o identificador parcial (like/ilike).\n- Resultado respeita o isolamento por UEP.\n\n---\n_Épico: `epic:rebanho` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:rebanho",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-18 — Registrar entrada/saída de ração",
+    "body": "**Como** TECNICO, **quero** registrar entradas (compra) e saídas (consumo) de ração por UEP,\n**para** manter o controle de estoque do setor.\n\n**Critérios de aceite**\n- Cada movimentação tem tipo (entrada/saída), insumo, quantidade e data.\n- O saldo do estoque é recalculado automaticamente após cada movimentação.\n- Não existe hoje nenhum módulo de estoque no backend — é necessário criar a tabela, os\n  endpoints e a lógica de saldo do zero.\n\n---\n_Épico: `epic:estoque` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:estoque",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-19 — Ver nível atual de estoque e consumo estimado",
+    "body": "**Como** usuário do setor, **quero** ver o nível atual de ração disponível e o consumo médio\ndiário, **para** saber quando será necessário repor.\n\n**Critérios de aceite**\n- Os valores vêm do banco (hoje a tela mostra \"—\" fixo, é só um placeholder visual).\n- O histórico de movimentações fica visível na aba de Estoque.\n\n---\n_Épico: `epic:estoque` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:estoque",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-20 — Alerta de nível crítico de estoque",
+    "body": "**Como** usuário do setor, **quero** ser avisado visualmente quando o estoque de um insumo\natingir um nível crítico, **para** evitar desabastecimento do rebanho.\n\n**Critérios de aceite**\n- Regra de negócio define o que é \"nível crítico\" (ex.: menos de X dias de consumo restante).\n- O alerta aparece destacado na tela de Estoque e/ou no Painel.\n\n---\n_Épico: `epic:estoque` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:estoque",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-21 — Anexar nota fiscal",
+    "body": "**Como** usuário do setor, **quero** anexar o arquivo de uma nota fiscal vinculada a uma\ncompra de ração ou entrada de animal, **para** manter o histórico documental das operações.\n\n**Critérios de aceite**\n- Upload de arquivo (PDF/imagem) com validação de tipo e tamanho.\n- A nota fica vinculada à movimentação/animal de origem.\n- Hoje o botão \"Anexar nota fiscal\" só mostra um alerta — não existe upload real.\n\n---\n_Épico: `epic:notas-fiscais` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:notas-fiscais",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-22 — Listar notas fiscais cadastradas",
+    "body": "**Como** Diretoria, **quero** ver todas as notas fiscais cadastradas no sistema, **para**\nconferência e prestação de contas.\n\n**Critérios de aceite**\n- Lista mostra data, valor, UEP de origem e link para o arquivo anexado.\n- Filtro por período e por UEP.\n\n---\n_Épico: `epic:notas-fiscais` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:notas-fiscais",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-23 — Relatório em PDF do censo geral",
+    "body": "**Como** Diretoria, **quero** gerar um PDF com a distribuição do rebanho por categoria, raça\ne disponibilidade, **para** apresentação institucional.\n\n**Critérios de aceite**\n- O botão \"Gerar PDF\" produz um arquivo real (hoje é só um `alert()`).\n- O relatório reflete os dados atuais do banco no momento da geração.\n\n---\n_Épico: `epic:relatorios` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:relatorios",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-24 — Relatório em PDF do status reprodutivo",
+    "body": "**Como** Diretoria, **quero** gerar um PDF com a fase reprodutiva de cada animal agrupada por\ncategoria, **para** acompanhar a saúde reprodutiva do rebanho.\n\n**Critérios de aceite**\n- Mesmo padrão de geração do US-23, com dados de status reprodutivo.\n\n---\n_Épico: `epic:relatorios` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:relatorios",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-25 — Exportar dados em Excel",
+    "body": "**Como** Diretoria, **quero** exportar os dados do rebanho em uma planilha Excel, **para**\nfazer análises externas ao sistema.\n\n**Critérios de aceite**\n- Exportação inclui pelo menos os mesmos dados do relatório de censo.\n\n---\n_Épico: `epic:relatorios` · Prioridade: `prioridade:baixa`_",
+    "labels": [
+      "epic:relatorios",
+      "prioridade:baixa"
+    ]
+  },
+  {
+    "title": "US-26 — Pipeline de CI real",
+    "body": "**Como** equipe de desenvolvimento, **quero** que o CI rode lint, build e testes de verdade a\ncada PR, **para** pegar erros antes do merge.\n\n**Critérios de aceite**\n- O job de backend hoje roda `node --test` sem nenhum teste existir — passa vazio sempre.\n- Adicionar testes unitários mínimos + rodar o smoke test com um Postgres de serviço no CI.\n- Job de frontend hoje é um `echo` de placeholder — precisa de um linter real (ex.: htmlhint).\n\n---\n_Épico: `epic:infra` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:infra",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-27 — Build e publicação de imagem Docker com Trivy",
+    "body": "**Como** equipe de desenvolvimento, **quero** que a pipeline gere a imagem Docker e rode o\nTrivy nela, **para** garantir zero vulnerabilidades críticas antes de publicar no registry.\n\n**Critérios de aceite**\n- Imagem publicada no GHCR (GitHub Container Registry).\n- Build funcionando em amd64 e arm64.\n- Trivy aprovado com 0 vulnerabilidades críticas (exigência explícita do Marco 1).\n\n---\n_Épico: `epic:infra` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:infra",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-28 — Smoke test automatizado no CI",
+    "body": "**Como** equipe de desenvolvimento, **quero** que o `npm run smoke` rode automaticamente a\ncada PR, **para** ter uma rede de segurança real (hoje só roda quando alguém lembra de rodar\nmanualmente).\n\n**Critérios de aceite**\n- CI sobe um Postgres de serviço, roda as migrations e executa o smoke test.\n- PR é bloqueada se o smoke falhar.\n\n---\n_Épico: `epic:infra` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:infra",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-29 — Deploy em VM na nuvem",
+    "body": "**Como** Diretoria/stakeholder, **quero** acessar o sistema publicado numa URL com domínio e\nHTTPS, **para** usá-lo fora do ambiente de desenvolvimento.\n\n**Critérios de aceite**\n- VM provisionada como IaaS em nuvem pública.\n- Domínio configurado, certificado SSL válido, proxy reverso.\n\n---\n_Épico: `epic:infra` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:infra",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-30 — Observabilidade",
+    "body": "**Como** equipe de desenvolvimento, **quero** ver métricas básicas (CPU, memória, disco),\nlogs e traces da aplicação, **para** diagnosticar problemas em produção.\n\n**Critérios de aceite**\n- Stack leve (ex.: Grafana/OTel/Loki/Tempo) coletando métricas da VM e dos contêineres.\n\n---\n_Épico: `epic:infra` · Prioridade: `prioridade:baixa`_",
+    "labels": [
+      "epic:infra",
+      "prioridade:baixa"
+    ]
+  },
+  {
+    "title": "US-31 — Teste de carga básico",
+    "body": "**Como** equipe de desenvolvimento, **quero** rodar um teste de carga com k6, **para**\nentender os limites da aplicação antes de apresentá-la.\n\n**Critérios de aceite**\n- Script de teste versionado no repositório.\n- Relatório com quantidade de requisições simuladas, gargalos identificados e sugestões de\n  melhoria.\n\n---\n_Épico: `epic:infra` · Prioridade: `prioridade:baixa`_",
+    "labels": [
+      "epic:infra",
+      "prioridade:baixa"
+    ]
+  },
+  {
+    "title": "US-32 — Modelagem de ameaças",
+    "body": "**Como** equipe de desenvolvimento, **quero** documentar o que precisa ser protegido, as\nprincipais ameaças, o impacto e como mitigá-las, **para** priorizar os controles de segurança\ncertos.\n\n**Critérios de aceite**\n- Documento na Wiki cobrindo pelo menos: dados de usuários/senhas, dados de animais/UEPs,\n  tokens JWT, e o próprio pipeline de CI/CD.\n\n---\n_Épico: `epic:seguranca` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:seguranca",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-33 — Guia de boas práticas de desenvolvimento seguro",
+    "body": "**Como** equipe de desenvolvimento, **quero** um guia com diretrizes mínimas de autenticação,\nautorização, validação de entradas, segredos e logs, **para** manter um padrão de segurança\nconsistente entre todos que codam no projeto.\n\n**Critérios de aceite**\n- Documento cobre os pontos exigidos: autenticação, autorização, inputs, upload de arquivos,\n  dependências, segredos, logs, erros.\n\n---\n_Épico: `epic:seguranca` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:seguranca",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-34 — Zero vulnerabilidades críticas",
+    "body": "**Como** equipe de desenvolvimento, **quero** revisar e mergear os PRs do Dependabot,\n**para** não acumular dependências vulneráveis conhecidas.\n\n**Critérios de aceite**\n- Os PRs de dependabot já abertos no repositório são avaliados (testados e mergeados, ou\n  fechados com justificativa).\n- Nenhuma vulnerabilidade crítica ou alta sem tratamento fica aberta.\n\n---\n_Épico: `epic:seguranca` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:seguranca",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-35 — README principal completo",
+    "body": "**Como** qualquer pessoa que abrir o repositório, **quero** entender o que é o projeto, como\nrodar e quem é a equipe só de ler o README, **para** não depender de explicação verbal.\n\n**Critérios de aceite**\n- Contém: nome, descrição, problema resolvido, tecnologias, links para Wiki/protótipos,\n  equipe e papéis (exigência da seção 13.1 do Documento de Entregas).\n\n---\n_Épico: `epic:docs` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:docs",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-36 — Wiki com documentação consolidada",
+    "body": "**Como** avaliador do projeto, **quero** encontrar toda a documentação técnica e funcional\norganizada na Wiki do repositório, **para** avaliar o projeto sem precisar pedir arquivos\nsoltos.\n\n**Critérios de aceite**\n- Contém, no mínimo: Documento de Visão, Arquitetura e Modelagem de Dados, Guia de Segurança\n  e Privacidade, Estratégia de Testes, Guia de Execução/Deploy/Operação, Manual de Uso,\n  Análise de Concorrência, Modelagem de Ameaças.\n\n---\n_Épico: `epic:docs` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:docs",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-37 — Templates de Issue e Pull Request",
+    "body": "**Como** equipe de desenvolvimento, **quero** templates padronizados ao abrir uma issue ou\nPR, **para** garantir que título, descrição, objetivo e critério de aceite nunca fiquem de\nfora.\n\n**Critérios de aceite**\n- Template de issue cobre: título, descrição, objetivo, critério de aceite, labels,\n  responsável.\n- Template de PR cobre: o que foi feito, como testar, issue relacionada.\n\n---\n_Épico: `epic:docs` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:docs",
+      "prioridade:alta"
+    ]
+  },
+  {
+    "title": "US-38 — CHANGELOG e releases",
+    "body": "**Como** avaliador do projeto, **quero** ver a evolução do sistema através de releases e um\nchangelog, **para** acompanhar o progresso sem precisar ler todos os commits.\n\n**Critérios de aceite**\n- Cada entrega relevante gera uma tag, uma release no GitHub e uma entrada no\n  `CHANGELOG.md`.\n\n---\n_Épico: `epic:docs` · Prioridade: `prioridade:media`_",
+    "labels": [
+      "epic:docs",
+      "prioridade:media"
+    ]
+  },
+  {
+    "title": "US-39 — Branch principal protegida",
+    "body": "**Como** equipe de desenvolvimento, **quero** que a branch `main` exija PR e não aceite push\ndireto, **para** evitar que um merge malfeito (como o da regressão do PR #19) aconteça sem\nrevisão.\n\n**Critérios de aceite**\n- `main` configurada com branch protection: PR obrigatório, pelo menos 1 aprovação, CI\n  precisa passar antes do merge.\n\n---\n_Épico: `epic:docs` · Prioridade: `prioridade:alta`_",
+    "labels": [
+      "epic:docs",
+      "prioridade:alta"
+    ]
+  }
+]
