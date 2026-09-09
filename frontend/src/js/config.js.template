@@ -1,0 +1,7 @@
+/* Gerado automaticamente na inicialização do container a partir da variável
+   de ambiente API_URL (ver frontend/.env.example e
+   docker-entrypoint.d/40-generate-api-config.sh). NÃO edite o arquivo
+   js/config.js gerado — edite este template ou a variável API_URL. */
+window.__APP_CONFIG__ = {
+  API_BASE: "${API_URL}/api"
+};

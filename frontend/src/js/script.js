@@ -1,7 +1,10 @@
 /* =====================================================================
    0. API — configuração e helpers de comunicação com o backend
    ===================================================================== */
-var API_BASE = 'http://localhost:3000/api';
+// API_BASE vem de js/config.js (gerado no container a partir de API_URL,
+// ver frontend/.env.example); o valor fixo abaixo so e usado se, por
+// algum motivo, config.js nao tiver carregado.
+var API_BASE = (window.__APP_CONFIG__ && window.__APP_CONFIG__.API_BASE) || 'http://localhost:3000/api';
 
 /* Mapa frontend-role → backend-role e vice-versa */
 var ROLE_MAP = {
@@ -255,6 +258,7 @@ function handleLogin(e) {
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || 'aluno';
     showAuth('auth-setor');
+    buildSetorGrid();
   }).catch(function(err) {
     showFormError('loginError', err.message);
   });
@@ -315,6 +319,7 @@ function handleCadastro(e) {
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || role;
     showAuth('auth-setor');
+    buildSetorGrid();
   }).catch(function(err) {
     showFormError('cadError', err.message);
   });
@@ -334,6 +339,7 @@ function trocarSetor() {
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
   showAuth('auth-setor');
+  buildSetorGrid();
 }
 
 
