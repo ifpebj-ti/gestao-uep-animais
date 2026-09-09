@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   frontend:
     build:
@@ -10,6 +8,10 @@ services:
       - backend
     env_file:
       - ./frontend/.env.example
+    environment:
+      # Sobrepoe o API_URL do frontend/.env.example com o valor global (raiz),
+      # se ele estiver definido, para nao ter dois lugares para editar.
+      API_URL: ${API_URL:-http://localhost:3000}
 
   backend:
     build:
@@ -19,7 +21,18 @@ services:
     depends_on:
       - db
     env_file:
+      # Só o que é exclusivo do backend (segredos/config que não fazem sentido
+      # em outro serviço). Configuração compartilhada (banco, portas) vem do
+      # .env.example da raiz via "environment" abaixo, para existir um único
+      # lugar de verdade e não dessincronizar os dois arquivos.
       - ./backend/.env.example
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-gestao_uep}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      BACKEND_PORT: ${BACKEND_PORT:-3000}
 
   data:
     build:
