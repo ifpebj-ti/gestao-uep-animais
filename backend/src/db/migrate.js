@@ -22,19 +22,43 @@ async function getAppliedMigrations(client) {
   return new Set(rows.map((r) => r.filename));
 }
 
-async function seedAdmin(client) {
-  const email = process.env.SEED_ADMIN_EMAIL || "admin@ifpe.edu.br";
-  const password = process.env.SEED_ADMIN_PASSWORD || "admin123";
-  const { rows } = await client.query("SELECT id FROM users WHERE email = $1", [email]);
-  if (rows.length > 0) return;
+// Uma conta de demonstracao por perfil, para todo mundo da equipe ter os
+// mesmos logins de teste ao rodar as migrations pela primeira vez (cada
+// maquina tem seu proprio banco local — ver docs/BACKLOG.md). O e-mail e a
+// senha de cada uma podem ser sobrescritos por variavel de ambiente
+// (SEED_<PERFIL>_EMAIL / SEED_<PERFIL>_PASSWORD, ver backend/.env.example).
+// Em um ambiente de producao de verdade, desative com SEED_DEMO_USERS=false
+// e troque a senha do admin logo no primeiro login.
+const DEMO_USERS = [
+  { envPrefix: "ADMIN", nome: "Administrador", role: "ADMIN", defaultEmail: "admin@ifpe.edu.br", defaultPassword: "admin123" },
+  { envPrefix: "PROFESSOR", nome: "Professor Demo", role: "PROFESSOR", defaultEmail: "professor@ifpe.edu.br", defaultPassword: "professor123" },
+  { envPrefix: "TECNICO", nome: "Tecnico Demo", role: "TECNICO", defaultEmail: "tecnico@ifpe.edu.br", defaultPassword: "tecnico123" },
+  { envPrefix: "ESTAGIARIO", nome: "Estagiario Demo", role: "ESTAGIARIO", defaultEmail: "estagiario@ifpe.edu.br", defaultPassword: "estagiario123" },
+  { envPrefix: "ALUNO", nome: "Aluno Demo", role: "ALUNO", defaultEmail: "aluno@ifpe.edu.br", defaultPassword: "aluno123" },
+];
 
-  const hash = await bcrypt.hash(password, 10);
-  await client.query(
-    `INSERT INTO users (nome, email, password_hash, role)
-     VALUES ($1, $2, $3, 'ADMIN')`,
-    ["Administrador", email, hash]
-  );
-  console.log(`Usuário admin semente criado: ${email}`);
+async function seedDemoUsers(client) {
+  const habilitado = (process.env.SEED_DEMO_USERS ?? "true") !== "false";
+  if (!habilitado) {
+    console.log("SEED_DEMO_USERS=false — pulando criação dos usuários de demonstração.");
+    return;
+  }
+
+  for (const u of DEMO_USERS) {
+    const email = process.env[`SEED_${u.envPrefix}_EMAIL`] || u.defaultEmail;
+    const password = process.env[`SEED_${u.envPrefix}_PASSWORD`] || u.defaultPassword;
+
+    const { rows } = await client.query("SELECT id FROM users WHERE email = $1", [email]);
+    if (rows.length > 0) continue;
+
+    const hash = await bcrypt.hash(password, 10);
+    await client.query(
+      `INSERT INTO users (nome, email, password_hash, role)
+       VALUES ($1, $2, $3, $4)`,
+      [u.nome, email, hash, u.role]
+    );
+    console.log(`Usuário semente criado: ${email} (${u.role})`);
+  }
 }
 
 async function run() {
@@ -66,7 +90,7 @@ async function run() {
       }
     }
 
-    await seedAdmin(client);
+    await seedDemoUsers(client);
     console.log("Migrações concluídas com sucesso.");
   } finally {
     client.release();
