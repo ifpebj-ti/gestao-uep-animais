@@ -1,4 +1,66 @@
 /* =====================================================================
+   0. API — configuração e helpers de comunicação com o backend
+   ===================================================================== */
+var API_BASE = 'http://localhost:3000/api';
+
+/* Mapa frontend-role → backend-role e vice-versa */
+var ROLE_MAP = {
+  aluno:      'ALUNO',
+  tecnico:    'TECNICO',
+  estagiario: 'ESTAGIARIO',
+  professor:  'PROFESSOR',
+  diretoria:  'ADMIN'
+};
+var ROLE_MAP_REVERSE = {
+  ALUNO:      'aluno',
+  TECNICO:    'tecnico',
+  ESTAGIARIO: 'estagiario',
+  PROFESSOR:  'professor',
+  ADMIN:      'diretoria'
+};
+
+/* Cores por tipo de UEP (fallback para UEPs sem cor cadastrada) */
+var TIPO_CORES = {
+  BOVINOCULTURA: '#2f9e41',
+  SUINOCULTURA:  '#1f7a6c',
+  AVICULTURA:    '#6b8f2f',
+  CUNICULTURA:   '#2f7a9e',
+  CAPRINOCULTURA:'#7a5c2f',
+  OVINOCULTURA:  '#5c2f7a',
+  LATICINIOS:    '#9e5c2f',
+  OUTRO:         '#555'
+};
+
+/* LocalStorage helpers */
+function getToken()  { return localStorage.getItem('sisgep_token'); }
+function setToken(t) { localStorage.setItem('sisgep_token', t); }
+function clearToken(){ localStorage.removeItem('sisgep_token'); }
+function getUser()   { try { return JSON.parse(localStorage.getItem('sisgep_user')); } catch(e) { return null; } }
+function setUser(u)  { localStorage.setItem('sisgep_user', JSON.stringify(u)); }
+function clearUser() { localStorage.removeItem('sisgep_user'); }
+
+/* Wrapper fetch com autenticação JWT e tratamento de erros */
+function apiFetch(endpoint, options) {
+  options = options || {};
+  options.headers = options.headers || {};
+  var token = getToken();
+  if (token) options.headers['Authorization'] = 'Bearer ' + token;
+  options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
+  return fetch(API_BASE + endpoint, options).then(function(res) {
+    if (!res.ok) {
+      return res.json().then(function(body) {
+        var msg = (body && body.message) ? body.message : 'Erro ' + res.status;
+        throw new Error(msg);
+      }).catch(function() {
+        throw new Error('Erro ' + res.status);
+      });
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  });
+}
+
+/* =====================================================================
    SISGEP — script.js
    Frontend estático (protótipo). Sem chamadas reais de API ainda —
    os pontos onde o backend deve entrar estão marcados com "BACKEND:".
@@ -65,13 +127,7 @@ var ROLES = {
    BACKEND: troque por GET /api/usuarios e valide login/senha no servidor,
    nunca no cliente.
    ===================================================================== */
-var USERS = [
-  { nome: 'Cleber Silva', email: 'cleber.silva@ifpe.edu.br', senha: '123456', role: 'diretoria' },
-  { nome: 'Arsênio Souza', email: 'arsenio.souza@ifpe.edu.br', senha: '123456', role: 'professor' },
-  { nome: 'Marcos Lima', email: 'marcos.lima@ifpe.edu.br', senha: '123456', role: 'tecnico' },
-  { nome: 'Ana Beatriz', email: 'ana.beatriz@aluno.ifpe.edu.br', senha: '123456', role: 'estagiario' },
-  { nome: 'João Pedro', email: 'joao.pedro@aluno.ifpe.edu.br', senha: '123456', role: 'aluno' }
-];
+var USERS = []; // cache local da ultima listagem GET /users, usado pela tela de Controle de Acesso
 
 
 /* =====================================================================
@@ -82,88 +138,25 @@ var USERS = [
    de exemplo. Trocar de setor não recarrega a página: renderSetor()
    repinta a tela com os dados do setor escolhido.
    ===================================================================== */
-var SETORES = {
-  bovinocultura: {
-    label: 'Bovinocultura',
-    sigla: 'BV',
-    cor: '#2f9e41',
-    desc: 'Bovinos de corte e leite',
-    categorias: { 'Vaca': 52, 'Bezerro(a)': 18, 'Desmamado': 21, 'Novilha': 14, 'Touro': 23 },
-    racas: { 'Nelore': 60, 'Girolando': 40, 'Holandês': 28 },
-    insumo: 'Ração bovina',
-    nivel: '380 kg',
-    consumo: '95 kg/dia',
-    animais: [
-      ['BV-0412', 'Nelore', 'Vaca', 'Lactante', 'disp'],
-      ['BV-0413', 'Girolando', 'Novilha', 'Em cobertura', 'disp'],
-      ['BV-0287', 'Holandês', 'Vaca', 'Seca', 'quar'],
-      ['BV-0301', 'Nelore', 'Touro', '—', 'vend'],
-      ['BV-0098', 'Nelore', 'Vaca', '—', 'desc']
-    ]
-  },
-  suinocultura: {
-    label: 'Suinocultura',
-    sigla: 'SU',
-    cor: '#1f7a6c',
-    desc: 'Produção e manejo de suínos',
-    categorias: { 'Matriz': 34, 'Leitão': 86, 'Recria': 52, 'Terminação': 30, 'Reprodutor': 8 },
-    racas: { 'Duroc': 70, 'Landrace': 90, 'Large White': 50 },
-    insumo: 'Ração suína',
-    nivel: '620 kg',
-    consumo: '180 kg/dia',
-    animais: [
-      ['SU-0101', 'Duroc', 'Matriz', 'Lactante', 'disp'],
-      ['SU-0102', 'Landrace', 'Leitão', '—', 'disp'],
-      ['SU-0087', 'Large White', 'Reprodutor', '—', 'disp'],
-      ['SU-0140', 'Duroc', 'Terminação', '—', 'vend']
-    ]
-  },
-  avicultura: {
-    label: 'Avicultura',
-    sigla: 'AV',
-    cor: '#6b8f2f',
-    desc: 'Aves de postura e corte',
-    categorias: { 'Poedeira': 420, 'Pintainha': 150, 'Frango de corte': 60, 'Matriz': 10 },
-    racas: { 'Leghorn': 300, 'Rhode Island': 250, 'Embrapa 051': 190 },
-    insumo: 'Ração de postura',
-    nivel: '910 kg',
-    consumo: '260 kg/dia',
-    animais: [
-      ['AV-2201', 'Leghorn', 'Poedeira', 'Postura', 'disp'],
-      ['AV-2202', 'Rhode Island', 'Pintainha', '—', 'disp'],
-      ['AV-2150', 'Embrapa 051', 'Matriz', '—', 'quar']
-    ]
-  },
-  cunicultura: {
-    label: 'Cunicultura',
-    sigla: 'CN',
-    cor: '#2f7a9e',
-    desc: 'Criação e manejo de coelhos',
-    categorias: { 'Matriz': 24, 'Filhote': 40, 'Recria': 26, 'Reprodutor': 6 },
-    racas: { 'Nova Zelândia': 40, 'Californiano': 36, 'Chinchila': 20 },
-    insumo: 'Ração de coelhos',
-    nivel: '140 kg',
-    consumo: '22 kg/dia',
-    animais: [
-      ['CU-0301', 'Nova Zelândia', 'Matriz', 'Gestante', 'disp'],
-      ['CU-0302', 'Californiano', 'Filhote', '—', 'disp'],
-      ['CU-0250', 'Chinchila', 'Reprodutor', '—', 'disp']
-    ]
-  }
-};
+// SETORES agora vem da API (GET /ueps) — ver buildSetorGrid()
 
-/* Mapa de status → [classe css, texto exibido], usado ao montar a tabela de animais */
+/* Mapa de status reprodutivo (enum do backend) → [classe css, texto exibido] */
 var STATUS_TAGS = {
-  disp: ['disp', 'Disponível'],
-  vend: ['vend', 'Vendido'],
-  desc: ['desc', 'Descartado'],
-  quar: ['quar', 'Quarentena']
+  NAO_APLICAVEL:  ['disp', 'Disponível'],
+  PRENHE:         ['disp', 'Prenhe'],
+  VAZIA:          ['disp', 'Vazia'],
+  LACTANTE:       ['disp', 'Lactante'],
+  EM_CRESCIMENTO: ['disp', 'Em crescimento'],
+  DESCARTE:       ['desc', 'Descarte']
 };
 
-/* Estado da sessão atual (só em memória — reseta ao recarregar a página) */
-var currentUser = null; // referência ao objeto de USERS que está logado
-var currentRole = '';
-var currentSetor = '';
+/* Estado da sessão atual */
+var currentUser = null;      // objeto { id, nome, email, role } retornado pela API
+var currentRole = '';        // role em minusculo (chave de ROLES), traduzida via ROLE_MAP_REVERSE
+var currentSetor = '';       // id numerico da UEP selecionada
+var currentSetorNome = '';
+var currentPage = 1;
+var PAGE_SIZE = 20;
 
 
 /* =====================================================================
@@ -207,21 +200,31 @@ function hideFormError(id) {
 
 /* =====================================================================
    5. TELA DE SELEÇÃO DE SETOR
-   Os tiles são gerados a partir de SETORES em vez de escritos à mão no
-   HTML — adicionar um novo setor no futuro é só adicionar uma entrada
-   no objeto acima.
+   Os tiles são gerados a partir das UEPs retornadas por GET /ueps.
    ===================================================================== */
 function buildSetorGrid() {
-  var html = '';
-  for (var key in SETORES) {
-    var s = SETORES[key];
-    html += '<div class="setor-tile" onclick="selectSetor(\'' + key + '\')">' +
-              '<div class="setor-badge" style="background:' + s.cor + '">' + s.sigla + '</div>' +
-              '<h3>' + s.label + '</h3><p>' + s.desc + '</p>' +
-              '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
-            '</div>';
-  }
-  document.getElementById('setorGrid').innerHTML = html;
+  var grid = document.getElementById('setorGrid');
+  grid.innerHTML = '<p style="padding:1rem;color:#888">Carregando UEPs…</p>';
+  apiFetch('/ueps').then(function(ueps) {
+    if (!ueps || ueps.length === 0) {
+      grid.innerHTML = '<p style="padding:1rem;color:#888">Nenhuma UEP cadastrada.</p>';
+      return;
+    }
+    var html = '';
+    ueps.forEach(function(u) {
+      var sigla = u.nome ? u.nome.slice(0, 2).toUpperCase() : '??';
+      var cor   = TIPO_CORES[u.tipo] || '#555';
+      var desc  = u.descricao || u.tipo || '';
+      html += '<div class="setor-tile" onclick="selectSetor(' + u.id + ',\'' + u.nome + '\')">' +
+                '<div class="setor-badge" style="background:' + cor + '">' + sigla + '</div>' +
+                '<h3>' + u.nome + '</h3><p>' + desc + '</p>' +
+                '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
+              '</div>';
+    });
+    grid.innerHTML = html;
+  }).catch(function(err) {
+    grid.innerHTML = '<p style="padding:1rem;color:#c00">Erro ao carregar UEPs: ' + err.message + '</p>';
+  });
 }
 
 
@@ -235,30 +238,26 @@ function buildSetorGrid() {
 
 /* Procura em USERS uma conta cujo e-mail e senha batam com o informado.
    Retorna o objeto do usuário, ou undefined se não achar. */
-function tentarLogin(email, senha) {
-  email = email.trim().toLowerCase();
-  return USERS.find(function (u) {
-    return u.email.toLowerCase() === email && u.senha === senha;
-  });
-}
-
-/* onsubmit do #loginForm */
+/* onsubmit do #loginForm — POST /api/auth/login */
 function handleLogin(e) {
   e.preventDefault();
   hideFormError('loginError');
 
-  var email = document.getElementById('loginEmail').value;
+  var email = document.getElementById('loginEmail').value.trim();
   var senha = document.getElementById('loginSenha').value;
-  var user = tentarLogin(email, senha);
 
-  if (!user) {
-    showFormError('loginError'); // usa a mensagem padrão já escrita no HTML
-    return;
-  }
-
-  currentUser = user;
-  currentRole = user.role;
-  showAuth('auth-setor');
+  apiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: email, senha: senha })
+  }).then(function(data) {
+    setToken(data.token);
+    setUser(data.user);
+    currentUser = data.user;
+    currentRole = ROLE_MAP_REVERSE[data.user.role] || 'aluno';
+    showAuth('auth-setor');
+  }).catch(function(err) {
+    showFormError('loginError', err.message);
+  });
 }
 
 /* Preenche o <select> de perfil do formulário de cadastro — só com os
@@ -279,7 +278,14 @@ function updateCadastroEmailField(role) {
   var institucional = ROLES[role] && ROLES[role].institucional;
   document.getElementById('cadEmailLabel').textContent = institucional ? 'E-mail institucional' : 'E-mail';
   document.getElementById('cadEmail').placeholder = institucional ? 'nome.sobrenome@ifpe.edu.br' : 'seuemail@exemplo.com';
-  document.getElementById('cadEmail').pattern = institucional ? '.+@ifpe\\.edu\\.br$' : '';
+  // pattern="" (string vazia) bloqueia qualquer valor em alguns browsers — remove o atributo
+  // por completo quando o perfil nao exige e-mail institucional, em vez de zera-lo.
+  var cadEmailEl = document.getElementById('cadEmail');
+  if (institucional) {
+    cadEmailEl.setAttribute('pattern', '.+@ifpe\\.edu\\.br$');
+  } else {
+    cadEmailEl.removeAttribute('pattern');
+  }
   document.getElementById('cadHint').style.display = institucional ? 'block' : 'none';
 }
 
@@ -289,7 +295,7 @@ function handleCadastro(e) {
   hideFormError('cadError');
 
   var nome = document.getElementById('cadNome').value.trim();
-  var role = document.getElementById('cadRole').value;
+  var role = document.getElementById('cadRole').value; // chave frontend: aluno/tecnico/estagiario/professor
   var email = document.getElementById('cadEmail').value.trim().toLowerCase();
   var senha = document.getElementById('cadSenha').value;
   var senha2 = document.getElementById('cadSenha2').value;
@@ -298,21 +304,27 @@ function handleCadastro(e) {
     showFormError('cadError', 'As senhas digitadas não conferem.');
     return;
   }
-  if (USERS.some(function (u) { return u.email.toLowerCase() === email; })) {
-    showFormError('cadError', 'Já existe uma conta cadastrada com esse e-mail.');
-    return;
-  }
 
-  var novoUsuario = { nome: nome, email: email, senha: senha, role: role };
-  USERS.push(novoUsuario);
-  currentUser = novoUsuario;
-  currentRole = role;
-  showAuth('auth-setor');
+  var backendRole = ROLE_MAP[role] || 'ALUNO';
+  apiFetch('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole })
+  }).then(function(data) {
+    setToken(data.token);
+    setUser(data.user);
+    currentUser = data.user;
+    currentRole = ROLE_MAP_REVERSE[data.user.role] || role;
+    showAuth('auth-setor');
+  }).catch(function(err) {
+    showFormError('cadError', err.message);
+  });
 }
 
 /* Chamado ao clicar num tile de setor/UEP — encerra o fluxo de autenticação e entra no app */
-function selectSetor(setor) {
-  currentSetor = setor;
+function selectSetor(setorId, setorNome) {
+  currentSetor = setorId;
+  currentSetorNome = setorNome;
+  currentPage = 1;
   enterApp();
 }
 
@@ -342,79 +354,106 @@ document.addEventListener('click', function () {
 
 /* =====================================================================
    8. RENDERIZAÇÃO DOS DADOS DO SETOR ATUAL
-   Preenche Painel, Gestão do Rebanho e Estoque com os dados de
-   SETORES[currentSetor]. É chamada sempre que o setor muda.
-   BACKEND: troque as leituras de SETORES[...] por dados vindos da API
-   (ex.: GET /api/setores/{setor}/animais, /estoque, etc.).
+   Preenche Painel, Gestão do Rebanho e Estoque com dados vindos da API
+   (GET /ueps/:id/animais e /ueps/:id/animais/censo). Chamada sempre
+   que o setor muda ou a página da tabela é trocada.
    ===================================================================== */
 function renderSetor() {
-  var s = SETORES[currentSetor];
+  var uepId = currentSetor;
+  var uepNome = currentSetorNome || 'UEP';
 
-  var totalAnimais = 0;
-  for (var k in s.categorias) totalAnimais += s.categorias[k];
+  document.getElementById('setorAtual').textContent = uepNome;
+  document.getElementById('heroSetor').textContent = uepNome;
+  document.getElementById('rebanhoTitulo').textContent = 'Gestão do Rebanho — ' + uepNome;
 
-  // --- Cabeçalhos e KPIs que citam o setor atual ---
-  document.getElementById('setorAtual').textContent = s.label;
-  document.getElementById('heroSetor').textContent = s.label;
-  document.getElementById('rebanhoTitulo').textContent = 'Gestão do Rebanho — ' + s.label;
-  document.getElementById('kpiTotal').textContent = totalAnimais;
-  document.getElementById('kpiQuarentena').textContent = s.animais.filter(function (a) { return a[4] === 'quar'; }).length;
-  document.getElementById('feed1').innerHTML = '<b>' + s.animais[0][0] + '</b> foi cadastrado(a)';
-  document.getElementById('feed2').innerHTML = 'Animal movido para atenção/quarentena';
+  var qs = '?page=' + currentPage + '&limit=' + PAGE_SIZE;
+  Promise.all([
+    apiFetch('/ueps/' + uepId + '/animais' + qs),
+    apiFetch('/ueps/' + uepId + '/animais/censo')
+  ]).then(function(results) {
+    var resp    = results[0] || {};
+    var animais = Array.isArray(resp) ? resp : (resp.data || []);
+    var pagina  = Array.isArray(resp)
+      ? { page: 1, totalPages: 1, total: animais.length, offset: 0 }
+      : resp;
+    var censo   = results[1] || {};
 
-  // --- Censo rápido por categoria ---
-  var censoCategoriaHtml = '<div class="counter"><div class="n">' + totalAnimais + '</div><div class="l">Total</div></div>';
-  for (var categoria in s.categorias) {
-    censoCategoriaHtml += '<div class="counter sub"><div class="n">' + s.categorias[categoria] + '</div><div class="l">' + categoria + '</div></div>';
-  }
-  document.getElementById('censoCategoria').innerHTML = censoCategoriaHtml;
+    var total = censo.total || pagina.total || animais.length;
+    var emQuarentena = animais.filter(function(a) { return a.status_reprodutivo === 'DESCARTE'; }).length;
 
-  // --- Censo rápido por raça ---
-  var censoRacaHtml = '';
-  for (var raca in s.racas) {
-    censoRacaHtml += '<div class="counter sub"><div class="n">' + s.racas[raca] + '</div><div class="l">' + raca + '</div></div>';
-  }
-  document.getElementById('censoRaca').innerHTML = censoRacaHtml;
+    document.getElementById('kpiTotal').textContent = total;
+    document.getElementById('kpiQuarentena').textContent = emQuarentena;
 
-  // --- Opções dos filtros (categoria / raça) ---
-  var opcoesCategoria = '<option value="">Categoria</option>';
-  for (var c in s.categorias) opcoesCategoria += '<option>' + c + '</option>';
-  document.getElementById('filtroCategoria').innerHTML = opcoesCategoria;
+    if (animais.length > 0) {
+      document.getElementById('feed1').innerHTML = '<b>' + (animais[0].brinco || animais[0].id) + '</b> está cadastrado(a)';
+    }
+    document.getElementById('feed2').innerHTML = 'Dados carregados da API';
 
-  var opcoesRaca = '<option value="">Raça</option>';
-  for (var r in s.racas) opcoesRaca += '<option>' + r + '</option>';
-  document.getElementById('filtroRaca').innerHTML = opcoesRaca;
+    // censo.porCategoria e censo.porRaca vem como array [{categoria|raca, total}]
+    var censoPorCat = {};
+    var censoPorRaca = {};
+    (censo.porCategoria || []).forEach(function(row) {
+      var cat = row.categoria || '?';
+      censoPorCat[cat] = (censoPorCat[cat] || 0) + (row.total || 0);
+    });
+    (censo.porRaca || []).forEach(function(row) {
+      var r = row.raca || 'Não informada';
+      censoPorRaca[r] = (censoPorRaca[r] || 0) + (row.total || 0);
+    });
 
-  // --- Tabela de animais ---
-  var linhasTabela = '';
-  s.animais.forEach(function (animal) {
-    var id = animal[0], raca = animal[1], categoria = animal[2], fase = animal[3], statusKey = animal[4];
-    var tag = STATUS_TAGS[statusKey]; // [classeCss, textoExibido]
+    var censoCategoriaHtml = '<div class="counter"><div class="n">' + total + '</div><div class="l">Total</div></div>';
+    Object.keys(censoPorCat).forEach(function(cat) {
+      censoCategoriaHtml += '<div class="counter sub"><div class="n">' + censoPorCat[cat] + '</div><div class="l">' + cat + '</div></div>';
+    });
+    document.getElementById('censoCategoria').innerHTML = censoCategoriaHtml;
 
-    linhasTabela +=
-      '<tr>' +
-        '<td class="brinco">' + id + '</td>' +
-        '<td>' + raca + '</td>' +
-        '<td>' + categoria + '</td>' +
-        '<td>' + fase + '</td>' +
-        '<td><span class="tag ' + tag[0] + '">' + tag[1] + '</span></td>' +
-        '<td><span class="link-ver">ver</span></td>' +
-      '</tr>';
+    var censoRacaHtml = '';
+    Object.keys(censoPorRaca).forEach(function(raca) {
+      censoRacaHtml += '<div class="counter sub"><div class="n">' + censoPorRaca[raca] + '</div><div class="l">' + raca + '</div></div>';
+    });
+    document.getElementById('censoRaca').innerHTML = censoRacaHtml || '<div class="counter sub"><div class="l">—</div></div>';
+
+    var opcoesCategoria = '<option value="">Categoria</option>';
+    Object.keys(censoPorCat).forEach(function(c) { opcoesCategoria += '<option>' + c + '</option>'; });
+    document.getElementById('filtroCategoria').innerHTML = opcoesCategoria;
+
+    var opcoesRaca = '<option value="">Raça</option>';
+    Object.keys(censoPorRaca).forEach(function(r) { opcoesRaca += '<option>' + r + '</option>'; });
+    document.getElementById('filtroRaca').innerHTML = opcoesRaca;
+
+    var linhasTabela = '';
+    animais.forEach(function(animal) {
+      var statusKey = animal.status_reprodutivo || 'NAO_APLICAVEL';
+      var tag = STATUS_TAGS[statusKey] || ['disp', statusKey];
+      linhasTabela +=
+        '<tr>' +
+          '<td class="brinco">' + (animal.brinco || animal.id) + '</td>' +
+          '<td>' + (animal.raca || '—') + '</td>' +
+          '<td>' + (animal.categoria || '—') + '</td>' +
+          '<td>' + (animal.sexo || '—') + '</td>' +
+          '<td><span class="tag ' + tag[0] + '">' + tag[1] + '</span></td>' +
+          '<td><span class="link-ver">ver</span></td>' +
+        '</tr>';
+    });
+    document.getElementById('tabelaAnimais').innerHTML = linhasTabela || '<tr><td colspan="6">Nenhum animal cadastrado.</td></tr>';
+
+    var de = animais.length ? (pagina.offset || 0) + 1 : 0;
+    var ate = (pagina.offset || 0) + animais.length;
+    document.getElementById('paginacaoInfo').textContent =
+      'Mostrando ' + de + '–' + ate + ' de ' + (pagina.total || total) + ' animais';
+    renderPaginacao(pagina.page || 1, pagina.totalPages || 1);
+
+    // Estoque (placeholder — modulo de estoque sera integrado futuramente)
+    document.getElementById('estoqueInsumo').textContent = 'Estoque — ' + uepNome;
+    document.getElementById('estoqueNivel').textContent = '—';
+    document.getElementById('estoqueLabel').textContent = 'Nível atual';
+    document.getElementById('estoqueConsumo').textContent = '—';
+    document.getElementById('tabelaEstoque').innerHTML = '<tr><td colspan="5">Módulo de estoque em breve.</td></tr>';
+
+  }).catch(function(err) {
+    document.getElementById('tabelaAnimais').innerHTML =
+      '<tr><td colspan="6" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
   });
-  document.getElementById('tabelaAnimais').innerHTML = linhasTabela;
-  document.getElementById('paginacaoInfo').textContent =
-    'Mostrando 1–' + s.animais.length + ' de ' + totalAnimais + ' animais';
-
-  // --- Estoque de ração do setor ---
-  document.getElementById('estoqueInsumo').textContent = 'Nível crítico — ' + s.insumo;
-  document.getElementById('estoqueNivel').textContent = s.nivel;
-  document.getElementById('estoqueLabel').textContent = 'Nível atual — ' + s.insumo;
-  document.getElementById('estoqueConsumo').textContent = s.consumo;
-
-  var consumoDiarioKg = s.consumo.split(' ')[0]; // extrai só o número de "95 kg/dia"
-  document.getElementById('tabelaEstoque').innerHTML =
-    '<tr><td>20/08/2026</td><td><span class="tag entrada">Entrada</span></td><td>' + s.insumo + '</td><td>500 kg</td><td>Sistema</td></tr>' +
-    '<tr><td>21/08/2026</td><td><span class="tag saida">Saída</span></td><td>' + s.insumo + '</td><td>' + consumoDiarioKg + ' kg</td><td>Sistema</td></tr>';
 }
 
 
@@ -445,53 +484,76 @@ function buildRoleOptions(selecionado, todos) {
   return html;
 }
 
-/* Repinta a tabela de contas com acesso, uma linha por usuário em USERS */
+/* Repinta a tabela de contas com acesso — GET /users (somente ADMIN) */
 function renderControleAcesso() {
-  var linhas = '';
-  USERS.forEach(function (u, indice) {
-    linhas +=
-      '<tr>' +
-        '<td>' + u.nome + '</td>' +
-        '<td>' + u.email + '</td>' +
-        '<td>' + roleBadge(u.role) + '</td>' +
-        '<td><select class="fake-select" style="min-width:150px;" onchange="alterarAcesso(' + indice + ', this.value)">' +
-              buildRoleOptions(u.role, true) +
-            '</select></td>' +
-        '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + indice + ')">remover</span></td>' +
-      '</tr>';
+  var tbody = document.getElementById('tabelaAcessos');
+  tbody.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
+
+  apiFetch('/users').then(function(usuarios) {
+    USERS = usuarios; // cache local para os handlers de alterar/remover
+
+    var linhas = '';
+    usuarios.forEach(function (u) {
+      var roleFrontend = ROLE_MAP_REVERSE[u.role] || 'aluno';
+      linhas +=
+        '<tr>' +
+          '<td>' + u.nome + '</td>' +
+          '<td>' + u.email + '</td>' +
+          '<td>' + roleBadge(roleFrontend) + '</td>' +
+          '<td><select class="fake-select" style="min-width:150px;" onchange="alterarAcesso(' + u.id + ', this.value)">' +
+                buildRoleOptions(roleFrontend, true) +
+              '</select></td>' +
+          '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + u.id + ')">remover</span></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = linhas || '<tr><td colspan="5">Nenhum usuário cadastrado.</td></tr>';
+  }).catch(function(err) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#c00">Erro ao carregar usuários: ' + err.message + '</td></tr>';
   });
-  document.getElementById('tabelaAcessos').innerHTML = linhas;
 }
 
-/* Chamado ao trocar o <select> de perfil de uma linha da tabela */
-function alterarAcesso(indice, novoRole) {
-  USERS[indice].role = novoRole;
-  renderControleAcesso();
+/* Chamado ao trocar o <select> de perfil de uma linha — PATCH /users/:id */
+function alterarAcesso(userId, novoRoleFrontend) {
+  var backendRole = ROLE_MAP[novoRoleFrontend] || 'ALUNO';
+  apiFetch('/users/' + userId, {
+    method: 'PATCH',
+    body: JSON.stringify({ role: backendRole })
+  }).then(function() {
+    renderControleAcesso();
+  }).catch(function(err) {
+    alert('Erro ao alterar acesso: ' + err.message);
+    renderControleAcesso(); // desfaz visualmente a troca no <select>
+  });
 }
 
-/* Chamado ao clicar em "remover", numa linha da tabela */
-function removerAcesso(indice) {
-  USERS.splice(indice, 1);
-  renderControleAcesso();
+/* Chamado ao clicar em "remover" — DELETE /users/:id */
+function removerAcesso(userId) {
+  apiFetch('/users/' + userId, { method: 'DELETE' }).then(function() {
+    renderControleAcesso();
+  }).catch(function(err) {
+    alert('Erro ao remover acesso: ' + err.message);
+  });
 }
 
-/* onsubmit do formulário "Conceder novo acesso" */
+/* onsubmit do formulário "Conceder novo acesso" — POST /users */
 function concederAcesso() {
   hideFormError('acessoError');
 
   var nome = document.getElementById('naNome').value.trim();
   var email = document.getElementById('naEmail').value.trim().toLowerCase();
-  var role = document.getElementById('naRole').value;
+  var roleFrontend = document.getElementById('naRole').value;
   var senha = document.getElementById('naSenha').value;
+  var backendRole = ROLE_MAP[roleFrontend] || 'ALUNO';
 
-  if (USERS.some(function (u) { return u.email.toLowerCase() === email; })) {
-    showFormError('acessoError', 'Já existe um acesso cadastrado com esse e-mail.');
-    return;
-  }
-
-  USERS.push({ nome: nome, email: email, senha: senha, role: role });
-  document.getElementById('novoAcessoForm').reset();
-  renderControleAcesso();
+  apiFetch('/users', {
+    method: 'POST',
+    body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole })
+  }).then(function() {
+    document.getElementById('novoAcessoForm').reset();
+    renderControleAcesso();
+  }).catch(function(err) {
+    showFormError('acessoError', err.message);
+  });
 }
 
 
@@ -519,6 +581,7 @@ function toggleTabsByRole() {
    preenchido em handleLogin/handleCadastro a partir do array USERS local).
    Troque por dados retornados pela API de autenticação. */
 function enterApp() {
+  currentUser = currentUser || getUser();
   var displayName = currentUser && currentUser.nome ? currentUser.nome.split(' ')[0] : 'Usuário';
   displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
@@ -542,6 +605,9 @@ function enterApp() {
 
 /* Botão "Sair da conta" no menu do usuário */
 function logout() {
+  clearToken();
+  clearUser();
+
   document.getElementById('userMenu').classList.remove('show');
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
@@ -549,6 +615,8 @@ function logout() {
   currentUser = null;
   currentRole = '';
   currentSetor = '';
+  currentSetorNome = '';
+  currentPage = 1;
 
   showAuth('auth-login');
   document.getElementById('loginForm').reset();
@@ -561,6 +629,89 @@ function logout() {
 /* =====================================================================
    11. INICIALIZAÇÃO
    ===================================================================== */
-buildSetorGrid();
+// buildSetorGrid() NAO e chamado aqui: ele bate em GET /ueps, que exige token.
+// E chamado dentro de handleLogin/handleCadastro, apos a autenticacao.
 buildCadastroRoleOptions();
 document.getElementById('naRole').innerHTML = buildRoleOptions(null, true); // formulário de concessão inclui Diretoria
+
+
+/* =====================================================================
+   12. MODAL DE CADASTRO DE ANIMAL
+   ===================================================================== */
+function abrirModalAnimal() {
+  document.getElementById('formAnimal').reset();
+  document.getElementById('modalAnimal').style.display = 'flex';
+}
+
+function fecharModalAnimal() {
+  document.getElementById('modalAnimal').style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+  var modal = document.getElementById('modalAnimal');
+  if (modal && e.target === modal) fecharModalAnimal();
+});
+
+function salvarAnimal() {
+  var btn = document.getElementById('btnSalvarAnimal');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  var payload = {
+    brinco:             document.getElementById('anBrinco').value.trim(),
+    categoria:          document.getElementById('anCategoria').value,
+    sexo:               document.getElementById('anSexo').value,
+    raca:               document.getElementById('anRaca').value.trim() || null,
+    dataNascimento:     document.getElementById('anNasc').value || null,
+    statusReprodutivo:  document.getElementById('anStatus').value,
+    observacoes:        document.getElementById('anObs').value.trim() || null
+  };
+
+  apiFetch('/ueps/' + currentSetor + '/animais', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }).then(function() {
+    fecharModalAnimal();
+    currentPage = 1; // o novo animal entra no topo (ordem: created_at DESC)
+    renderSetor();
+  }).catch(function(err) {
+    alert('Erro ao salvar: ' + err.message);
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = 'Salvar';
+  });
+}
+
+
+/* =====================================================================
+   13. PAGINAÇÃO DA TABELA DE ANIMAIS
+   ===================================================================== */
+function renderPaginacao(page, totalPages) {
+  var box = document.getElementById('paginacaoBotoes');
+  if (!box) return;
+
+  if (totalPages <= 1) { box.innerHTML = ''; return; }
+
+  var html = '<button onclick="irParaPagina(' + (page - 1) + ')"' +
+             (page <= 1 ? ' disabled' : '') + '>\u2039</button>';
+
+  var inicio = Math.max(1, page - 2);
+  var fim    = Math.min(totalPages, inicio + 4);
+  inicio     = Math.max(1, fim - 4);
+
+  for (var i = inicio; i <= fim; i++) {
+    html += '<button onclick="irParaPagina(' + i + ')"' +
+            (i === page ? ' class="current"' : '') + '>' + i + '</button>';
+  }
+
+  html += '<button onclick="irParaPagina(' + (page + 1) + ')"' +
+          (page >= totalPages ? ' disabled' : '') + '>\u203A</button>';
+
+  box.innerHTML = html;
+}
+
+function irParaPagina(page) {
+  if (page < 1) return;
+  currentPage = page;
+  renderSetor();
+}
