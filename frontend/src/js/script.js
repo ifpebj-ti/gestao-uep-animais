@@ -52,15 +52,29 @@ function apiFetch(endpoint, options) {
   return fetch(API_BASE + endpoint, options).then(function(res) {
     if (!res.ok) {
       return res.json().then(function(body) {
-        var msg = (body && body.message) ? body.message : 'Erro ' + res.status;
+        // o backend manda o erro em { error: "..." } (ver errorHandler.js) —
+        // "message" nunca existiu nessa resposta, por isso caía sempre no
+        // fallback genérico "Erro 401" em vez de mostrar o motivo de verdade
+        var msg = (body && body.error) ? body.error : mensagemGenericaPorStatus(res.status);
         throw new Error(msg);
       }).catch(function() {
-        throw new Error('Erro ' + res.status);
+        throw new Error(mensagemGenericaPorStatus(res.status));
       });
     }
     if (res.status === 204) return null;
     return res.json();
   });
+}
+
+// usado só quando a resposta de erro não veio com corpo JSON (raro — timeout,
+// proxy no meio do caminho, etc). Pros erros normais da API, a mensagem real
+// do backend (body.error) sempre tem prioridade sobre isso.
+function mensagemGenericaPorStatus(status) {
+  if (status === 401) return 'E-mail ou senha incorretos.';
+  if (status === 403) return 'Você não tem permissão para fazer isso.';
+  if (status === 404) return 'Não encontrado.';
+  if (status >= 500) return 'Erro no servidor. Tenta de novo em instantes.';
+  return 'Não foi possível completar a solicitação.';
 }
 
 /* =====================================================================
@@ -145,12 +159,12 @@ var USERS = []; // cache local da ultima listagem GET /users, usado pela tela de
 
 /* Mapa de status reprodutivo (enum do backend) → [classe css, texto exibido] */
 var STATUS_TAGS = {
-  NAO_APLICAVEL:  ['disp', 'Disponível'],
-  PRENHE:         ['disp', 'Prenhe'],
-  VAZIA:          ['disp', 'Vazia'],
-  LACTANTE:       ['disp', 'Lactante'],
-  EM_CRESCIMENTO: ['disp', 'Em crescimento'],
-  DESCARTE:       ['desc', 'Descarte']
+  NAO_APLICAVEL:  ['status-nao-aplicavel', 'Disponível'],
+  PRENHE:         ['status-prenhe',        'Prenhe'],
+  VAZIA:          ['status-vazia',         'Vazia'],
+  LACTANTE:       ['status-lactante',      'Lactante'],
+  EM_CRESCIMENTO: ['status-crescimento',   'Em crescimento'],
+  DESCARTE:       ['status-descarte',      'Descarte']
 };
 
 /* Estado da sessão atual */
@@ -160,6 +174,9 @@ var currentSetor = '';       // id numerico da UEP selecionada
 var currentSetorNome = '';
 var currentPage = 1;
 var PAGE_SIZE = 20;
+// Guarda o id do animal em edição quando o modal é aberto via "ver" (clique
+// na tabela). null = modal está no modo "Novo Animal" (cadastro).
+var animalEditandoId = null;
 
 
 /* =====================================================================
@@ -198,6 +215,20 @@ function showFormError(id, mensagem) {
 }
 function hideFormError(id) {
   document.getElementById(id).classList.add('hidden');
+}
+
+// pra erro a gente já usa alert() mesmo; isso aqui é só pra confirmar que
+// uma ação deu certo (salvar, conceder acesso...), sem travar a tela com alert
+function mostrarToast(mensagem) {
+  var toast = document.createElement('div');
+  toast.className = 'toast-sucesso';
+  toast.textContent = mensagem;
+  document.body.appendChild(toast);
+
+  setTimeout(function() {
+    toast.classList.add('toast-saindo');
+    setTimeout(function() { toast.remove(); }, 300);
+  }, 2500);
 }
 
 
@@ -325,6 +356,23 @@ function handleCadastro(e) {
   });
 }
 
+/* Chamada pelos onchange/Enter da barra de filtros — volta pra página 1
+   e busca de novo com os filtros atuais. */
+function aplicarFiltros() {
+  currentPage = 1;
+  renderSetor();
+}
+
+/* Botão "Limpar" da barra de filtros */
+function limparFiltros() {
+  document.getElementById('filtroBusca').value = '';
+  document.getElementById('filtroCategoria').value = '';
+  document.getElementById('filtroRaca').value = '';
+  document.getElementById('filtroFase').value = '';
+  document.getElementById('filtroDisponivel').value = '';
+  aplicarFiltros();
+}
+
 /* Chamado ao clicar num tile de setor/UEP — encerra o fluxo de autenticação e entra no app */
 function selectSetor(setorId, setorNome) {
   currentSetor = setorId;
@@ -372,7 +420,25 @@ function renderSetor() {
   document.getElementById('heroSetor').textContent = uepNome;
   document.getElementById('rebanhoTitulo').textContent = 'Gestão do Rebanho — ' + uepNome;
 
+  // Filtros: a maioria vai direto pra query string da API. RAÇA é a
+  // exceção — o backend (animais.repository.js -> buildFilters) ainda não
+  // aceita filtro por raça, então aplicamos esse filtro aqui no cliente,
+  // em cima da página já recebida. BACKEND: adicionar `raca` em buildFilters
+  // pra isso funcionar de verdade em todas as páginas, não só na atual.
+  var fBusca      = (document.getElementById('filtroBusca').value || '').trim();
+  var fCategoria  = document.getElementById('filtroCategoria').value;
+  var fRaca       = document.getElementById('filtroRaca').value;
+  var fFase       = document.getElementById('filtroFase').value;
+  var fDisponivel = document.getElementById('filtroDisponivel').value;
+
   var qs = '?page=' + currentPage + '&limit=' + PAGE_SIZE;
+  if (fBusca)      qs += '&busca=' + encodeURIComponent(fBusca);
+  if (fCategoria)  qs += '&categoria=' + encodeURIComponent(fCategoria);
+  if (fFase)       qs += '&statusReprodutivo=' + encodeURIComponent(fFase);
+  if (fDisponivel) qs += '&disponivel=' + fDisponivel;
+
+  document.getElementById('tabelaAnimais').innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
+
   Promise.all([
     apiFetch('/ueps/' + uepId + '/animais' + qs),
     apiFetch('/ueps/' + uepId + '/animais/censo')
@@ -383,6 +449,13 @@ function renderSetor() {
       ? { page: 1, totalPages: 1, total: animais.length, offset: 0 }
       : resp;
     var censo   = results[1] || {};
+
+    // Filtro de raça (client-side, só na página atual — ver nota acima)
+    var filtradoPorRaca = false;
+    if (fRaca) {
+      animais = animais.filter(function(a) { return (a.raca || '') === fRaca; });
+      filtradoPorRaca = true;
+    }
 
     var total = censo.total || pagina.total || animais.length;
     var emQuarentena = animais.filter(function(a) { return a.status_reprodutivo === 'DESCARTE'; }).length;
@@ -438,15 +511,16 @@ function renderSetor() {
           '<td>' + (animal.categoria || '—') + '</td>' +
           '<td>' + (animal.sexo || '—') + '</td>' +
           '<td><span class="tag ' + tag[0] + '">' + tag[1] + '</span></td>' +
-          '<td><span class="link-ver">ver</span></td>' +
+          '<td><span class="link-ver" onclick="verAnimal(\'' + animal.id + '\')">ver</span></td>' +
         '</tr>';
     });
     document.getElementById('tabelaAnimais').innerHTML = linhasTabela || '<tr><td colspan="6">Nenhum animal cadastrado.</td></tr>';
 
     var de = animais.length ? (pagina.offset || 0) + 1 : 0;
     var ate = (pagina.offset || 0) + animais.length;
-    document.getElementById('paginacaoInfo').textContent =
-      'Mostrando ' + de + '–' + ate + ' de ' + (pagina.total || total) + ' animais';
+    document.getElementById('paginacaoInfo').textContent = filtradoPorRaca
+      ? 'Mostrando ' + animais.length + ' animais da raça "' + fRaca + '" nesta página'
+      : 'Mostrando ' + de + '–' + ate + ' de ' + (pagina.total || total) + ' animais';
     renderPaginacao(pagina.page || 1, pagina.totalPages || 1);
 
     // Estoque (placeholder — modulo de estoque sera integrado futuramente)
@@ -490,17 +564,44 @@ function buildRoleOptions(selecionado, todos) {
   return html;
 }
 
-/* Repinta a tabela de contas com acesso — GET /users (somente ADMIN) */
+/* Monta as <option> de um <select> de UEP a partir da lista já carregada,
+   marcando a UEP atual do usuário como selected (se ele já tiver uma). */
+function montarOpcoesSetor(ueps, uepIdAtual) {
+  var html = '<option value="">Sem UEP definida</option>';
+  ueps.forEach(function(u) {
+    var sel = (uepIdAtual != null && String(uepIdAtual) === String(u.id)) ? ' selected' : '';
+    html += '<option value="' + u.id + '"' + sel + '>' + u.nome + '</option>';
+  });
+  return html;
+}
+
+/* Repinta a tabela de contas com acesso — GET /users + GET /ueps (somente ADMIN).
+   Busca as duas coisas juntas porque cada linha da tabela precisa de um
+   <select> de UEP, e o formulário de "conceder novo acesso" também usa essa
+   mesma lista. */
 function renderControleAcesso() {
   var tbody = document.getElementById('tabelaAcessos');
-  tbody.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
 
-  apiFetch('/users').then(function(usuarios) {
+  Promise.all([
+    apiFetch('/users'),
+    apiFetch('/ueps')
+  ]).then(function(results) {
+    var usuarios = results[0] || [];
+    var ueps = results[1] || [];
     USERS = usuarios; // cache local para os handlers de alterar/remover
+
+    // o formulário de conceder acesso usa a mesma lista de UEPs, sem nenhuma pré-selecionada
+    document.getElementById('naSetor').innerHTML = montarOpcoesSetor(ueps, null);
 
     var linhas = '';
     usuarios.forEach(function (u) {
       var roleFrontend = ROLE_MAP_REVERSE[u.role] || 'aluno';
+      // BACKEND: users ainda não tem coluna de UEP — quando o campo existir
+      // na resposta de GET /users (ex.: uep_id, igual o resto da API devolve
+      // em snake_case cru do banco), essa linha já pega o valor certo sozinha.
+      var uepIdAtual = u.uep_id != null ? u.uep_id : u.uepId;
+
       linhas +=
         '<tr>' +
           '<td>' + u.nome + '</td>' +
@@ -509,12 +610,37 @@ function renderControleAcesso() {
           '<td><select class="fake-select" style="min-width:150px;" onchange="alterarAcesso(' + u.id + ', this.value)">' +
                 buildRoleOptions(roleFrontend, true) +
               '</select></td>' +
+          '<td><select class="fake-select" style="min-width:170px;" onchange="alterarSetorUsuario(' + u.id + ', this.value)">' +
+                montarOpcoesSetor(ueps, uepIdAtual) +
+              '</select></td>' +
           '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + u.id + ')">remover</span></td>' +
         '</tr>';
     });
-    tbody.innerHTML = linhas || '<tr><td colspan="5">Nenhum usuário cadastrado.</td></tr>';
+    tbody.innerHTML = linhas || '<tr><td colspan="6">Nenhum usuário cadastrado.</td></tr>';
   }).catch(function(err) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:#c00">Erro ao carregar usuários: ' + err.message + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
+  });
+}
+
+/* Chamado ao trocar o <select> de UEP de uma linha.
+   BACKEND: hoje isso só funciona de verdade quando o backend tiver:
+   1) uma coluna uep_id em users (migration: ALTER TABLE users ADD COLUMN
+      uep_id INTEGER REFERENCES ueps(id) ON DELETE SET NULL);
+   2) PATCH /users/:id aceitando { uepId } no corpo e gravando essa coluna;
+   3) GET /users devolvendo esse campo em cada usuário (pra tabela já abrir
+      com o setor certo pré-selecionado, sem precisar clicar em nada).
+   Até isso existir, essa chamada vai falhar com erro do backend — o que é
+   esperado, é só a parte do front pronta esperando a API. */
+function alterarSetorUsuario(userId, novoUepId) {
+  apiFetch('/users/' + userId, {
+    method: 'PATCH',
+    body: JSON.stringify({ uepId: novoUepId ? Number(novoUepId) : null })
+  }).then(function() {
+    renderControleAcesso();
+    mostrarToast('UEP do usuário atualizada.');
+  }).catch(function(err) {
+    alert('Erro ao alterar UEP: ' + err.message);
+    renderControleAcesso(); // desfaz visualmente a troca no <select>
   });
 }
 
@@ -526,37 +652,58 @@ function alterarAcesso(userId, novoRoleFrontend) {
     body: JSON.stringify({ role: backendRole })
   }).then(function() {
     renderControleAcesso();
+    mostrarToast('Perfil atualizado.');
   }).catch(function(err) {
     alert('Erro ao alterar acesso: ' + err.message);
     renderControleAcesso(); // desfaz visualmente a troca no <select>
   });
 }
 
-/* Chamado ao clicar em "remover" — DELETE /users/:id */
+/* Chamado ao clicar em "remover" — pede confirmação antes (é irreversível),
+   igual a gente já faz pra remover animal, e só então dá o DELETE /users/:id */
 function removerAcesso(userId) {
+  var usuario = USERS.find(function(u) { return u.id === userId; });
+  var quem = usuario ? (usuario.nome + ' (' + usuario.email + ')') : 'este usuário';
+
+  var confirmado = window.confirm(
+    'Tem certeza que deseja remover o acesso de ' + quem + '?\n\nEssa ação não pode ser desfeita.'
+  );
+  if (!confirmado) return;
+
   apiFetch('/users/' + userId, { method: 'DELETE' }).then(function() {
     renderControleAcesso();
+    mostrarToast('Acesso removido.');
   }).catch(function(err) {
     alert('Erro ao remover acesso: ' + err.message);
   });
 }
 
-/* onsubmit do formulário "Conceder novo acesso" — POST /users */
+/* onsubmit do formulário "Conceder novo acesso" — POST /users
+   BACKEND: uepId só vai ser persistido de verdade quando o backend aceitar
+   esse campo em POST /users (mesma dependência do alterarSetorUsuario acima). */
 function concederAcesso() {
   hideFormError('acessoError');
 
   var nome = document.getElementById('naNome').value.trim();
   var email = document.getElementById('naEmail').value.trim().toLowerCase();
   var roleFrontend = document.getElementById('naRole').value;
+  var uepId = document.getElementById('naSetor').value;
   var senha = document.getElementById('naSenha').value;
   var backendRole = ROLE_MAP[roleFrontend] || 'ALUNO';
 
   apiFetch('/users', {
     method: 'POST',
-    body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole })
+    body: JSON.stringify({
+      nome: nome,
+      email: email,
+      senha: senha,
+      role: backendRole,
+      uepId: uepId ? Number(uepId) : null
+    })
   }).then(function() {
     document.getElementById('novoAcessoForm').reset();
     renderControleAcesso();
+    mostrarToast('Acesso concedido a ' + nome + '.');
   }).catch(function(err) {
     showFormError('acessoError', err.message);
   });
@@ -642,15 +789,68 @@ document.getElementById('naRole').innerHTML = buildRoleOptions(null, true); // f
 
 
 /* =====================================================================
-   12. MODAL DE CADASTRO DE ANIMAL
+   12. MODAL DE ANIMAL (cadastro, visualização e edição)
+   O mesmo modal serve para os dois fluxos:
+   - abrirModalAnimal(): modo "Novo Animal" (formulário vazio, POST ao salvar)
+   - verAnimal(id): modo "Detalhes do Animal" (busca na API, PATCH ao salvar)
    ===================================================================== */
+
+// guarda o que estava com foco antes de abrir o modal, pra devolver o foco
+// pra lá quando fechar (importante pra quem navega só com teclado)
+var elementoAntesDoModal = null;
+
+function focarPrimeiroCampoModal() {
+  var campo = document.getElementById('anBrinco');
+  if (campo) campo.focus();
+}
+
 function abrirModalAnimal() {
+  animalEditandoId = null;
+  elementoAntesDoModal = document.activeElement;
   document.getElementById('formAnimal').reset();
+  document.getElementById('modalAnimalTitulo').textContent = 'Novo Animal';
+  document.getElementById('btnSalvarAnimal').textContent = 'Salvar';
+  document.getElementById('btnRemoverAnimal').style.display = 'none';
   document.getElementById('modalAnimal').style.display = 'flex';
+  focarPrimeiroCampoModal();
+}
+
+/* Chamada ao clicar em "ver" numa linha da tabela — GET /ueps/:uep/animais/:id
+   e preenche o mesmo formulário do cadastro, só que em modo edição. */
+function verAnimal(id) {
+  elementoAntesDoModal = document.activeElement;
+
+  apiFetch('/ueps/' + currentSetor + '/animais/' + id).then(function(animal) {
+    animalEditandoId = animal.id;
+
+    document.getElementById('anBrinco').value   = animal.brinco || '';
+    document.getElementById('anCategoria').value = animal.categoria || '';
+    document.getElementById('anSexo').value      = animal.sexo || '';
+    document.getElementById('anRaca').value      = animal.raca || '';
+    // input[type=date] só aceita "AAAA-MM-DD" — corta o restante do timestamp, se vier
+    document.getElementById('anNasc').value      = animal.data_nascimento ? animal.data_nascimento.slice(0, 10) : '';
+    document.getElementById('anStatus').value    = animal.status_reprodutivo || 'NAO_APLICAVEL';
+    document.getElementById('anObs').value       = animal.observacoes || '';
+
+    document.getElementById('modalAnimalTitulo').textContent = 'Detalhes do Animal — ' + (animal.brinco || animal.id);
+    document.getElementById('btnSalvarAnimal').textContent = 'Salvar alterações';
+    document.getElementById('btnRemoverAnimal').style.display = 'inline-block';
+    document.getElementById('modalAnimal').style.display = 'flex';
+    focarPrimeiroCampoModal();
+  }).catch(function(err) {
+    alert('Erro ao carregar animal: ' + err.message);
+  });
 }
 
 function fecharModalAnimal() {
   document.getElementById('modalAnimal').style.display = 'none';
+  animalEditandoId = null;
+
+  // devolve o foco pra quem abriu o modal (botão "Novo Cadastro" ou "ver" da linha)
+  if (elementoAntesDoModal && typeof elementoAntesDoModal.focus === 'function') {
+    elementoAntesDoModal.focus();
+  }
+  elementoAntesDoModal = null;
 }
 
 document.addEventListener('click', function(e) {
@@ -658,8 +858,36 @@ document.addEventListener('click', function(e) {
   if (modal && e.target === modal) fecharModalAnimal();
 });
 
+// Esc fecha o modal, e Tab/Shift+Tab ficam presos dentro dele enquanto tiver
+// aberto (senão o teclado continua navegando pro resto da página por trás)
+document.addEventListener('keydown', function(e) {
+  var modal = document.getElementById('modalAnimal');
+  if (!modal || modal.style.display !== 'flex') return;
+
+  if (e.key === 'Escape') {
+    fecharModalAnimal();
+    return;
+  }
+
+  if (e.key === 'Tab') {
+    var focaveis = modal.querySelectorAll('input, select, textarea, button');
+    if (!focaveis.length) return;
+    var primeiro = focaveis[0];
+    var ultimo = focaveis[focaveis.length - 1];
+
+    if (e.shiftKey && document.activeElement === primeiro) {
+      e.preventDefault();
+      ultimo.focus();
+    } else if (!e.shiftKey && document.activeElement === ultimo) {
+      e.preventDefault();
+      primeiro.focus();
+    }
+  }
+});
+
 function salvarAnimal() {
   var btn = document.getElementById('btnSalvarAnimal');
+  var editando = !!animalEditandoId;
   btn.disabled = true;
   btn.textContent = 'Salvando…';
 
@@ -673,18 +901,53 @@ function salvarAnimal() {
     observacoes:        document.getElementById('anObs').value.trim() || null
   };
 
-  apiFetch('/ueps/' + currentSetor + '/animais', {
-    method: 'POST',
+  var url = editando
+    ? '/ueps/' + currentSetor + '/animais/' + animalEditandoId
+    : '/ueps/' + currentSetor + '/animais';
+
+  apiFetch(url, {
+    method: editando ? 'PATCH' : 'POST',
     body: JSON.stringify(payload)
   }).then(function() {
     fecharModalAnimal();
-    currentPage = 1; // o novo animal entra no topo (ordem: created_at DESC)
+    if (!editando) currentPage = 1; // animal novo entra no topo (ordem: created_at DESC)
     renderSetor();
+    mostrarToast(editando ? 'Animal atualizado com sucesso.' : 'Animal cadastrado com sucesso.');
   }).catch(function(err) {
     alert('Erro ao salvar: ' + err.message);
   }).finally(function() {
     btn.disabled = false;
-    btn.textContent = 'Salvar';
+    btn.textContent = editando ? 'Salvar alterações' : 'Salvar';
+  });
+}
+
+/* Chamada ao clicar em "Remover animal" dentro do modal (só existe no modo
+   de visualização/edição — ver verAnimal()). Pede confirmação antes de
+   mandar o DELETE, já que é uma ação que não pode ser desfeita. */
+function confirmarRemoverAnimal() {
+  if (!animalEditandoId) return;
+
+  var brinco = document.getElementById('anBrinco').value || animalEditandoId;
+  var confirmado = window.confirm(
+    'Tem certeza que deseja remover o animal ' + brinco + '?\n\nEssa ação não pode ser desfeita.'
+  );
+  if (!confirmado) return;
+
+  var btnRemover = document.getElementById('btnRemoverAnimal');
+  btnRemover.disabled = true;
+  btnRemover.textContent = 'Removendo…';
+
+  apiFetch('/ueps/' + currentSetor + '/animais/' + animalEditandoId, {
+    method: 'DELETE'
+  }).then(function() {
+    fecharModalAnimal();
+    renderSetor();
+    mostrarToast('Animal removido.');
+  }).catch(function(err) {
+    alert('Erro ao remover: ' + err.message);
+  }).finally(function() {
+    btnRemover.disabled = false;
+    btnRemover.textContent = 'Remover animal';
   });
 }
 
