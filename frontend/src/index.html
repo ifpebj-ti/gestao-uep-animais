@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SISGEP</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E %3Cg transform='translate(7,1)'%3E %3Ccircle cx='5' cy='5' r='5' fill='%23cd191e'/%3E %3Crect x='12' y='0' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='24' y='0' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='0' y='12' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='12' y='12' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='0' y='24' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='12' y='24' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='24' y='24' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='0' y='36' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='12' y='36' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3C/g%3E %3C/svg%3E">
 <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap">
 <link rel="stylesheet" href="css/style.css">
@@ -210,11 +211,24 @@
     </div>
 
     <form class="toolbar" onsubmit="return false;">
-      <div class="fake-input"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Buscar por brinco / ID"></div>
-      <select class="fake-select" id="filtroCategoria"><option value="">Categoria</option></select>
-      <select class="fake-select" id="filtroRaca"><option value="">Raça</option></select>
-      <select class="fake-select"><option value="">Fase</option><option>Lactante</option><option>Seca</option><option>Gestante</option><option>Postura</option></select>
-      <select class="fake-select"><option value="">Disponibilidade</option><option>Disponível</option><option>Vendido</option><option>Descartado</option><option>Quarentena</option></select>
+      <div class="fake-input"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" id="filtroBusca" placeholder="Buscar por brinco / corte australiano / SISBOV" onkeyup="if(event.key==='Enter') aplicarFiltros();"></div>
+      <select class="fake-select" id="filtroCategoria" onchange="aplicarFiltros()"><option value="">Categoria</option></select>
+      <select class="fake-select" id="filtroRaca" onchange="aplicarFiltros()"><option value="">Raça</option></select>
+      <select class="fake-select" id="filtroFase" onchange="aplicarFiltros()">
+        <option value="">Fase</option>
+        <option value="NAO_APLICAVEL">Não aplicável</option>
+        <option value="PRENHE">Prenhe</option>
+        <option value="VAZIA">Vazia</option>
+        <option value="LACTANTE">Lactante</option>
+        <option value="EM_CRESCIMENTO">Em crescimento</option>
+        <option value="DESCARTE">Descarte</option>
+      </select>
+      <select class="fake-select" id="filtroDisponivel" onchange="aplicarFiltros()">
+        <option value="">Disponibilidade</option>
+        <option value="true">Disponível</option>
+        <option value="false">Indisponível</option>
+      </select>
+      <button type="button" class="btn outline" onclick="limparFiltros()">Limpar</button>
     </form>
 
     <table>
@@ -283,13 +297,13 @@
   </div>
 
   <!-- CONTROLE DE ACESSO (somente Diretoria) -->
-  <!-- BACKEND: GET/POST/PATCH/DELETE /api/usuarios — gerenciar quem tem acesso e com qual perfil -->
+  <!-- BACKEND: GET/POST/PATCH/DELETE /api/usuarios — gerenciar quem tem acesso, com qual perfil e em qual UEP -->
   <div class="screen" id="acessos">
-    <div class="page-head"><div><h1>Controle de Acesso</h1><p>Gerencie quais e-mails têm acesso ao sistema e qual o perfil de cada um</p></div></div>
+    <div class="page-head"><div><h1>Controle de Acesso</h1><p>Gerencie quais e-mails têm acesso ao sistema, qual o perfil e a qual UEP cada um está vinculado</p></div></div>
 
     <div class="section-label">Contas com acesso</div>
     <table style="margin-bottom:22px;">
-      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil atual</th><th>Alterar perfil</th><th></th></tr></thead>
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil atual</th><th>Alterar perfil</th><th>UEP</th><th></th></tr></thead>
       <tbody id="tabelaAcessos"></tbody>
     </table>
 
@@ -298,6 +312,7 @@
       <div class="fake-input"><input id="naNome" type="text" placeholder="Nome completo" required></div>
       <div class="fake-input"><input id="naEmail" type="email" placeholder="E-mail" required></div>
       <select class="fake-select" id="naRole"></select>
+      <select class="fake-select" id="naSetor"><option value="">Sem UEP definida</option></select>
       <div class="fake-input"><input id="naSenha" type="password" placeholder="Senha temporária" required></div>
       <button type="submit" class="btn"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Conceder acesso</button>
     </form>
@@ -311,9 +326,9 @@
 <script src="js/script.js"></script>
 
 <!-- Modal: Cadastro de Animal -->
-<div id="modalAnimal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+<div id="modalAnimal" role="dialog" aria-modal="true" aria-labelledby="modalAnimalTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
   <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(480px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
-    <h2 style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Novo Animal</h2>
+    <h2 id="modalAnimalTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Novo Animal</h2>
     <form id="formAnimal" onsubmit="event.preventDefault(); salvarAnimal();">
       <div style="display:grid;gap:.9rem;">
         <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">BRINCO / ID
@@ -361,11 +376,14 @@
             style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;resize:vertical;"></textarea>
         </label>
       </div>
-      <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
-        <button type="button" onclick="fecharModalAnimal()"
-          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
-        <button type="submit" id="btnSalvarAnimal"
-          style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
+      <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:space-between;align-items:center;">
+        <button type="button" id="btnRemoverAnimal" onclick="confirmarRemoverAnimal()" style="display:none;padding:.55rem 1rem;border-radius:7px;border:1px solid var(--if-red);background:transparent;color:var(--if-red);cursor:pointer;font-weight:600;">Remover animal</button>
+        <div style="display:flex;gap:.75rem;margin-left:auto;">
+          <button type="button" onclick="fecharModalAnimal()"
+            style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+          <button type="submit" id="btnSalvarAnimal"
+            style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
+        </div>
       </div>
     </form>
   </div>
