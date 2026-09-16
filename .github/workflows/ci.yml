@@ -9,9 +9,33 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gestao_uep
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: ./backend
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: gestao_uep
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      BACKEND_PORT: 3000
+      JWT_SECRET: ci-test-secret-nao-usar-em-producao
+      JWT_EXPIRES_IN: 8h
+      SEED_DEMO_USERS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,6 +45,29 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm install
       - run: npm run test --if-present
+
+      - name: Rodar migrations (schema + seeds de demonstração)
+        run: npm run migrate
+
+      - name: Iniciar backend em segundo plano
+        run: npm start &
+
+      - name: Aguardar backend ficar pronto
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              echo "Backend no ar."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend não respondeu em 30s." >&2
+          exit 1
+
+      - name: Smoke test (Sprints 3-5 — auth, UEPs, animais, censo, paginação)
+        run: npm run smoke
+        env:
+          API_BASE: http://localhost:3000/api
 
   data:
     runs-on: ubuntu-latest
@@ -40,5 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validar HTML/CSS (placeholder)
-        run: echo "Adicionar linter de HTML/CSS (ex. htmlhint, stylelint)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Lint HTML (htmlhint)
+        run: npx --yes htmlhint "frontend/src/**/*.html"
