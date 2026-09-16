@@ -10,4 +10,9 @@ router.post("/login", authController.login);
 // Roles permitidos para autocadastro: ALUNO, TECNICO, ESTAGIARIO, PROFESSOR
 router.post("/register", authController.register);
 
+// POST /api/auth/google  { credential }
+// credential = ID token (JWT) emitido pelo Google Identity Services no front.
+// Cria a conta automaticamente no primeiro login (ver auth.service.js).
+router.post("/google", authController.loginGoogle);
+
 export default router;

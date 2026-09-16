@@ -31,7 +31,7 @@ export const usersRepository = {
 
   async findByEmail(email) {
     const { rows } = await query(
-      `SELECT id, nome, email, password_hash, role, ativo FROM users WHERE email = $1`,
+      `SELECT id, nome, email, password_hash, google_id, role, ativo FROM users WHERE email = $1`,
       [email]
     );
     return rows[0] ?? null;
@@ -45,6 +45,29 @@ export const usersRepository = {
       [nome, email, passwordHash, role]
     );
     return rows[0];
+  },
+
+  /* Cria uma conta a partir do primeiro login com Google — sem senha
+     (password_hash fica NULL; ver migration 005_google_auth.sql, que
+     torna essa coluna opcional). "ativo" já vem decidido pelo
+     auth.service.js (institucional = true, senão pendente = false). */
+  async createGoogleUser({ nome, email, googleId, role, ativo }) {
+    const { rows } = await query(
+      `INSERT INTO users (nome, email, password_hash, google_id, role, ativo)
+       VALUES ($1, $2, NULL, $3, $4, $5)
+       RETURNING id, nome, email, role, ativo, google_id, created_at, updated_at`,
+      [nome, email, googleId, role, ativo]
+    );
+    return rows[0];
+  },
+
+  /* Associa um google_id a uma conta já existente (criada por e-mail/senha
+     ou por concessão de acesso) que ainda não tinha logado com Google. */
+  async linkGoogleId(id, googleId) {
+    await query(`UPDATE users SET google_id = $2, updated_at = now() WHERE id = $1`, [
+      id,
+      googleId,
+    ]);
   },
 
   async update(id, { nome, role, ativo }) {

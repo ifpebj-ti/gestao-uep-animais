@@ -9,9 +9,11 @@ services:
     env_file:
       - ./frontend/.env.example
     environment:
-      # Sobrepoe o API_URL do frontend/.env.example com o valor global (raiz),
-      # se ele estiver definido, para nao ter dois lugares para editar.
+      # Sobrepoe API_URL/GOOGLE_CLIENT_ID do frontend/.env.example com o
+      # valor global (raiz), se ele estiver definido, para nao ter dois
+      # lugares para editar.
       API_URL: ${API_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
 
   backend:
     build:
@@ -33,6 +35,7 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       BACKEND_PORT: ${BACKEND_PORT:-3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
 
   data:
     build:
