@@ -765,7 +765,15 @@ function alterarAcesso(userId, novoRoleFrontend) {
   var backendRole = ROLE_MAP[novoRoleFrontend] || 'ALUNO';
   apiFetch('/users/' + userId, {
     method: 'PATCH',
-    body: JSON.stringify({ role: backendRole })
+    // ativo:true junto com o role: na pratica, quem troca o perfil de
+    // alguem aqui esta decidindo dar acesso a essa pessoa com esse perfil —
+    // inclusive contas pendentes (criadas via Google com dominio nao-
+    // institucional, ver auth.service.js -> loginWithGoogle). Sem isso, dava
+    // pra trocar o perfil de uma conta pendente pra Professor e ela continuar
+    // bloqueada no login, porque "Alterar perfil" e "aprovar" eram acoes
+    // separadas — confuso, e foi exatamente o que aconteceu num teste real.
+    // Pra quem ja estava ativo, mandar ativo:true de novo e inofensivo.
+    body: JSON.stringify({ role: backendRole, ativo: true })
   }).then(function() {
     renderControleAcesso();
     mostrarToast('Perfil atualizado.');
