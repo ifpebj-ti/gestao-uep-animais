@@ -295,6 +295,93 @@ function handleLogin(e) {
   });
 }
 
+/* =====================================================================
+   6.1 LOGIN COM GOOGLE (Google Identity Services)
+   #googleButtonContainer (index.html) começa vazio e é preenchido aqui com
+   o BOTÃO NATIVO do Google (renderButton), não com um botão nosso chamando
+   prompt(). Motivo: prompt() só mostra alguma coisa quando já existe uma
+   sessão do Google aberta no navegador — em aba anônima/InPrivate, ou pra
+   quem não tá logado no Google, ele simplesmente não aparece (nenhum erro,
+   nenhum evento, "clica e não acontece nada"). O botão nativo abre o
+   seletor de conta numa janela de verdade e funciona em qualquer situação.
+
+   onGoogleScriptLoaded() é chamado pelo atributo onload do <script src=
+   "accounts.google.com/gsi/client"> no <head> do index.html, assim que o
+   SDK termina de carregar — não dá pra esperar o clique do usuário pra
+   isso, porque o botão já precisa estar desenhado na tela pra ser clicável.
+   window.__APP_CONFIG__.GOOGLE_CLIENT_ID vem do js/config.js (gerado no
+   container a partir da env GOOGLE_CLIENT_ID — ver frontend/.env.example).
+   ===================================================================== */
+var googleInitialized = false;
+
+function onGoogleScriptLoaded() {
+  ensureGoogleInit();
+}
+
+function ensureGoogleInit() {
+  if (googleInitialized) return true;
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) return false;
+
+  var clientId = window.__APP_CONFIG__ && window.__APP_CONFIG__.GOOGLE_CLIENT_ID;
+  var container = document.getElementById('googleButtonContainer');
+
+  if (!clientId) {
+    // ambiente sem GOOGLE_CLIENT_ID configurado (ver frontend/.env.example) —
+    // não tem o que desenhar, então avisa no lugar do botão em vez de
+    // deixar o espaço vazio sem explicação.
+    if (container) {
+      container.innerHTML = '<p class="google-btn-indisponivel">Login com Google indisponível no momento. Use e-mail e senha.</p>';
+    }
+    return false;
+  }
+
+  google.accounts.id.initialize({
+    client_id: clientId,
+    callback: handleGoogleCredentialResponse
+  });
+
+  if (container) {
+    google.accounts.id.renderButton(container, {
+      type: 'standard',
+      theme: 'outline',
+      shape: 'pill',
+      size: 'large',
+      text: 'continue_with',
+      logo_alignment: 'left',
+      locale: 'pt-BR',
+      width: 320
+    });
+  }
+
+  googleInitialized = true;
+  return true;
+}
+
+/* Callback da GSI — recebe o ID token do Google e troca por um token da
+   nossa API (POST /auth/google). O backend decide o perfil pelo domínio
+   do e-mail: @ifpe.edu.br entra direto como Professor; qualquer outro
+   domínio vira Aluno, mas pendente de aprovação da Diretoria (ativo=false)
+   até alguém liberar em Controle de Acesso — daí o status 202 abaixo. */
+function handleGoogleCredentialResponse(response) {
+  apiFetch('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential: response.credential })
+  }).then(function(data) {
+    if (data && data.pendente) {
+      showFormError('loginError', data.message || 'Conta criada, aguardando aprovação da Diretoria.');
+      return;
+    }
+    setToken(data.token);
+    setUser(data.user);
+    currentUser = data.user;
+    currentRole = ROLE_MAP_REVERSE[data.user.role] || 'aluno';
+    showAuth('auth-setor');
+    buildSetorGrid();
+  }).catch(function(err) {
+    showFormError('loginError', err.message);
+  });
+}
+
 /* Preenche o <select> de perfil do formulário de cadastro — só com os
    perfis que têm ROLES[x].cadastro = true (Diretoria fica de fora). */
 function buildCadastroRoleOptions() {
@@ -581,7 +668,7 @@ function montarOpcoesSetor(ueps, uepIdAtual) {
    mesma lista. */
 function renderControleAcesso() {
   var tbody = document.getElementById('tabelaAcessos');
-  tbody.innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
 
   Promise.all([
     apiFetch('/users'),
@@ -613,12 +700,41 @@ function renderControleAcesso() {
           '<td><select class="fake-select" style="min-width:170px;" onchange="alterarSetorUsuario(' + u.id + ', this.value)">' +
                 montarOpcoesSetor(ueps, uepIdAtual) +
               '</select></td>' +
+          '<td>' + statusAcessoBadge(u) + '</td>' +
           '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + u.id + ')">remover</span></td>' +
         '</tr>';
     });
-    tbody.innerHTML = linhas || '<tr><td colspan="6">Nenhum usuário cadastrado.</td></tr>';
+    tbody.innerHTML = linhas || '<tr><td colspan="7">Nenhum usuário cadastrado.</td></tr>';
   }).catch(function(err) {
-    tbody.innerHTML = '<tr><td colspan="6" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
+  });
+}
+
+/* Coluna "Status" da tabela de acessos. A maioria dos usuários (cadastro
+   manual / concedido pela Diretoria) já nasce com ativo=true. Contas
+   criadas via login com Google com e-mail não-institucional nascem com
+   ativo=false ("pendente") — ver auth.service.js -> loginWithGoogle — e
+   só passam a existir de fato, pro resto do sistema, quando alguém aqui
+   clica em "aprovar" (PATCH /users/:id { ativo: true }). */
+function statusAcessoBadge(u) {
+  if (u.ativo === false) {
+    return '<span class="tag" style="background:#b58900;color:#fff;">Pendente</span> ' +
+           '<span class="link-ver" onclick="aprovarAcesso(' + u.id + ')">aprovar</span>';
+  }
+  return '<span class="tag" style="background:#2f9e41;color:#fff;">Ativo</span>';
+}
+
+/* Chamado ao clicar em "aprovar" na coluna Status — libera o acesso de uma
+   conta criada via Google que ainda está pendente (ativo=false). */
+function aprovarAcesso(userId) {
+  apiFetch('/users/' + userId, {
+    method: 'PATCH',
+    body: JSON.stringify({ ativo: true })
+  }).then(function() {
+    renderControleAcesso();
+    mostrarToast('Acesso aprovado.');
+  }).catch(function(err) {
+    alert('Erro ao aprovar acesso: ' + err.message);
   });
 }
 
@@ -786,6 +902,15 @@ function logout() {
 // E chamado dentro de handleLogin/handleCadastro, apos a autenticacao.
 buildCadastroRoleOptions();
 document.getElementById('naRole').innerHTML = buildRoleOptions(null, true); // formulário de concessão inclui Diretoria
+
+// Rede corporativa/escolar bloqueando accounts.google.com, adblock, etc. —
+// nesses casos o <script> do Google nunca dispara o onload, e o
+// onGoogleScriptLoaded() de SEÇÃO 6.1 nunca roda. Sem esse fallback, o
+// espaço do botão ficaria vazio pra sempre, sem nenhuma explicação. 4s é
+// tempo de sobra pro SDK carregar numa conexão normal.
+setTimeout(function() {
+  if (!googleInitialized) ensureGoogleInit();
+}, 4000);
 
 
 /* =====================================================================
