@@ -168,6 +168,8 @@
       <!-- .admin-only = visível SOMENTE para a Diretoria -->
       <div class="tab admin-only" id="tab-relatorios" onclick="go('relatorios', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h6"/></svg> Relatórios (PDF)</div>
       <div class="tab admin-only" id="tab-acessos" onclick="go('acessos', event)"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 10-6.32"/><path d="M17 14v3M17 21v.01"/><circle cx="17" cy="17.5" r="4"/></svg> Controle de Acesso</div>
+      <!-- .professor-only = visível SOMENTE para o Professor -->
+      <div class="tab professor-only" id="tab-equipe" onclick="go('equipe', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Minha Equipe</div>
     </div>
   </div>
 </nav>
@@ -306,27 +308,53 @@
     </form>
   </div>
 
-  <!-- CONTROLE DE ACESSO (somente Diretoria) -->
-  <!-- BACKEND: GET/POST/PATCH/DELETE /api/usuarios — gerenciar quem tem acesso, com qual perfil e em qual UEP -->
+  <!-- CONTROLE DE ACESSO (somente Diretoria) — só gerencia contas de Professor.
+       Cada Professor cuida da própria equipe (Aluno/Técnico/Estagiário) na
+       aba "Minha Equipe" logo abaixo, não aqui. -->
+  <!-- BACKEND: GET/POST/PATCH/DELETE /users?role=PROFESSOR — gerenciar quem é Professor e em qual UEP -->
   <div class="screen" id="acessos">
-    <div class="page-head"><div><h1>Controle de Acesso</h1><p>Gerencie quais e-mails têm acesso ao sistema, qual o perfil e a qual UEP cada um está vinculado</p></div></div>
+    <div class="page-head"><div><h1>Controle de Acesso</h1><p>Gerencie quais professores têm acesso ao sistema e a qual UEP cada um está vinculado</p></div></div>
 
-    <div class="section-label">Contas com acesso</div>
+    <div class="section-label">Professores com acesso</div>
     <table style="margin-bottom:22px;">
-      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil atual</th><th>Alterar perfil</th><th>UEP</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Nome</th><th>E-mail</th><th>UEP</th><th>Status</th><th></th></tr></thead>
       <tbody id="tabelaAcessos"></tbody>
     </table>
 
-    <div class="section-label">Conceder novo acesso</div>
+    <div class="section-label">Conceder novo acesso de Professor</div>
     <form class="toolbar" id="novoAcessoForm" onsubmit="event.preventDefault(); concederAcesso();">
       <div class="fake-input"><input id="naNome" type="text" placeholder="Nome completo" required></div>
-      <div class="fake-input"><input id="naEmail" type="email" placeholder="E-mail" required></div>
-      <select class="fake-select" id="naRole"></select>
+      <div class="fake-input"><input id="naEmail" type="email" placeholder="E-mail institucional" required></div>
       <select class="fake-select" id="naSetor"><option value="">Sem UEP definida</option></select>
       <div class="fake-input"><input id="naSenha" type="password" placeholder="Senha temporária" required></div>
       <button type="submit" class="btn"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Conceder acesso</button>
     </form>
     <div class="auth-error hidden" id="acessoError" style="max-width:none;margin-top:12px;"></div>
+  </div>
+
+  <!-- MINHA EQUIPE (somente Professor) — cada Professor cadastra e gerencia
+       só os próprios Alunos/Técnicos/Estagiários. UEP e vínculo com o
+       Professor são implícitos (o próprio Professor logado), não dá pra
+       escolher aqui — ver comentário BACKEND na seção 13 do script.js. -->
+  <!-- BACKEND: GET/POST/PATCH/DELETE /users?professorId=<eu mesmo> — escopado ao Professor autenticado -->
+  <div class="screen" id="equipe">
+    <div class="page-head"><div><h1>Minha Equipe</h1><p>Gerencie os alunos, técnicos e estagiários vinculados a você</p></div></div>
+
+    <div class="section-label">Integrantes da equipe</div>
+    <table style="margin-bottom:22px;">
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Alterar perfil</th><th>Status</th><th></th></tr></thead>
+      <tbody id="tabelaEquipe"></tbody>
+    </table>
+
+    <div class="section-label">Adicionar integrante</div>
+    <form class="toolbar" id="novaEquipeForm" onsubmit="event.preventDefault(); concederAcessoEquipe();">
+      <div class="fake-input"><input id="eqNome" type="text" placeholder="Nome completo" required></div>
+      <div class="fake-input"><input id="eqEmail" type="email" placeholder="E-mail" required></div>
+      <select class="fake-select" id="eqRole"></select>
+      <div class="fake-input"><input id="eqSenha" type="password" placeholder="Senha temporária" required></div>
+      <button type="submit" class="btn"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Adicionar à equipe</button>
+    </form>
+    <div class="auth-error hidden" id="equipeError" style="max-width:none;margin-top:12px;"></div>
   </div>
 
 </main>
