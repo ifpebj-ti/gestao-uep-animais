@@ -1,4 +1,5 @@
 :root{
+  color-scheme: light; /* site só tem tema claro — ver comentário no <head> do index.html */
   --primary:#2f9e41; --primary-dark:#1f7a30; --primary-pastel:#e1f5e6; --primary-pastel-02:#c8ead0;
   --gray-bg:#f8f8f8; --gray-border:#e0e0e0; --gray-text:#4b5563;
   --if-green:#2f9e41; --if-red:#cd191e; --if-black:#000;
@@ -202,6 +203,18 @@ tbody td{padding:13px 16px;font-size:14px;border-top:1px solid var(--gray-border
 .tag.role-estagiario{background:#fff3cd;color:#8a6d00;}
 .tag.role-professor{background:#dcecea;color:#1f7a6c;}
 .tag.role-diretoria{background:#dbe9f0;color:#2f7a9e;}
+
+/* Seletor de UEPs em "chips" (Controle de Acesso — um Professor pode ter
+   acesso a mais de uma UEP): cada UEP concedida vira uma pílula com um "x"
+   pra remover; um <select> pequeno ao lado só lista as UEPs que faltam,
+   pra adicionar uma nova. */
+.uep-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:220px;padding:6px 0;}
+.uep-chip{display:inline-flex;align-items:center;gap:6px;background:var(--primary-pastel-02);color:var(--primary-dark);font-size:12.5px;font-weight:700;padding:6px 8px 6px 13px;border-radius:16px;white-space:nowrap;line-height:1;}
+.uep-chip .chip-remove{cursor:pointer;font-weight:700;line-height:1;border:none;background:rgba(0,0,0,.08);width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--primary-dark);border-radius:50%;transition:background-color .15s,color .15s;}
+.uep-chip .chip-remove:hover{color:#fff;background:var(--if-red);}
+.uep-add-select{border:1px dashed #b8c2c0;border-radius:16px;padding:6px 12px;font-size:12.5px;font-weight:600;color:#546e7a;background:#fff;font-family:'Rawline',sans-serif;cursor:pointer;transition:border-color .15s,color .15s;}
+.uep-add-select:hover{border-color:var(--primary);color:var(--primary-dark);}
+.uep-empty-hint{font-size:12.5px;color:#888;font-style:italic;}
 
 .auth-card{background:#fff;border:1px solid var(--gray-border);border-top:4px solid var(--primary);border-radius:10px;padding:36px 34px;max-width:400px;width:100%;}
 .auth-card h2{margin:0 0 6px;font-size:20px;color:#1c1c1c;}

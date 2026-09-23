@@ -146,6 +146,7 @@ var ROLES = {
    ===================================================================== */
 var USERS = [];
 var EQUIPE = [];
+var MINHA_UEPS = []; // UEPs que o Professor logado tem acesso (Minha Equipe)
 
 
 /* =====================================================================
@@ -237,28 +238,77 @@ function mostrarToast(mensagem) {
    5. TELA DE SELEÇÃO DE SETOR
    Os tiles são gerados a partir das UEPs retornadas por GET /ueps.
    ===================================================================== */
-function buildSetorGrid() {
+/* uepsPreCarregadas (opcional): quando quem chamou já sabe quais UEPs
+   mostrar (ver entrarNaSelecaoDeSetor), a grade é pintada direto com essa
+   lista, sem bater em GET /ueps de novo — é assim que a tela só mostra as
+   UEPs que o usuário logado (Professor) realmente tem acesso, em vez de
+   todas as UEPs do sistema. Sem esse argumento, busca todas (uso da
+   Diretoria, que enxerga tudo mesmo). */
+function buildSetorGrid(uepsPreCarregadas) {
   var grid = document.getElementById('setorGrid');
+
+  if (uepsPreCarregadas) {
+    pintarGradeDeSetores(uepsPreCarregadas);
+    return;
+  }
+
   grid.innerHTML = '<p style="padding:1rem;color:#888">Carregando UEPs…</p>';
   apiFetch('/ueps').then(function(ueps) {
-    if (!ueps || ueps.length === 0) {
-      grid.innerHTML = '<p style="padding:1rem;color:#888">Nenhuma UEP cadastrada.</p>';
-      return;
-    }
-    var html = '';
-    ueps.forEach(function(u) {
-      var sigla = u.nome ? u.nome.slice(0, 2).toUpperCase() : '??';
-      var cor   = TIPO_CORES[u.tipo] || '#555';
-      var desc  = u.descricao || u.tipo || '';
-      html += '<div class="setor-tile" onclick="selectSetor(' + u.id + ',\'' + u.nome + '\')">' +
-                '<div class="setor-badge" style="background:' + cor + '">' + sigla + '</div>' +
-                '<h3>' + u.nome + '</h3><p>' + desc + '</p>' +
-                '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
-              '</div>';
-    });
-    grid.innerHTML = html;
+    pintarGradeDeSetores(ueps);
   }).catch(function(err) {
     grid.innerHTML = '<p style="padding:1rem;color:#c00">Erro ao carregar UEPs: ' + err.message + '</p>';
+  });
+}
+
+function pintarGradeDeSetores(ueps) {
+  var grid = document.getElementById('setorGrid');
+  if (!ueps || ueps.length === 0) {
+    grid.innerHTML = '<p style="padding:1rem;color:#888">Nenhuma UEP disponível pra você ainda. Fale com seu professor ou com a Diretoria.</p>';
+    return;
+  }
+  var html = '';
+  ueps.forEach(function(u) {
+    var sigla = u.nome ? u.nome.slice(0, 2).toUpperCase() : '??';
+    var cor   = TIPO_CORES[u.tipo] || '#555';
+    var desc  = u.descricao || u.tipo || '';
+    html += '<div class="setor-tile" onclick="selectSetor(' + u.id + ',\'' + u.nome + '\')">' +
+              '<div class="setor-badge" style="background:' + cor + '">' + sigla + '</div>' +
+              '<h3>' + u.nome + '</h3><p>' + desc + '</p>' +
+              '<svg class="icon s-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>' +
+            '</div>';
+  });
+  grid.innerHTML = html;
+}
+
+/* Chamada logo depois de autenticar (login por senha, Google ou cadastro),
+   em vez de "showAuth('auth-setor'); buildSetorGrid();" direto. Decide se
+   pula a tela de seleção de setor:
+   - Diretoria (ADMIN) sempre vê a tela cheia, com todas as UEPs — ela
+     supervisiona tudo, então não faz sentido restringir.
+   - Professor/equipe: busca em GET /users/me só as UEPs que essa pessoa
+     tem acesso. Se for exatamente uma, entra direto nela sem mostrar
+     seleção nenhuma. Se for mais de uma, mostra a tela só com essas.
+     Se for zero, mostra a tela vazia (com aviso) — ainda não tem UEP. */
+function entrarNaSelecaoDeSetor() {
+  if (currentRole === 'diretoria') {
+    showAuth('auth-setor');
+    buildSetorGrid();
+    return;
+  }
+
+  apiFetch('/users/me').then(function(me) {
+    var ueps = me.ueps || [];
+    if (ueps.length === 1) {
+      selectSetor(ueps[0].id, ueps[0].nome);
+      return;
+    }
+    showAuth('auth-setor');
+    buildSetorGrid(ueps);
+  }).catch(function() {
+    // se /users/me falhar por algum motivo, cai no comportamento antigo
+    // (mostra a tela de seleção com todas as UEPs) em vez de travar o login
+    showAuth('auth-setor');
+    buildSetorGrid();
   });
 }
 
@@ -289,8 +339,7 @@ function handleLogin(e) {
     setUser(data.user);
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || 'aluno';
-    showAuth('auth-setor');
-    buildSetorGrid();
+    entrarNaSelecaoDeSetor();
   }).catch(function(err) {
     showFormError('loginError', err.message);
   });
@@ -376,8 +425,7 @@ function handleGoogleCredentialResponse(response) {
     setUser(data.user);
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || 'aluno';
-    showAuth('auth-setor');
-    buildSetorGrid();
+    entrarNaSelecaoDeSetor();
   }).catch(function(err) {
     showFormError('loginError', err.message);
   });
@@ -437,8 +485,7 @@ function handleCadastro(e) {
     setUser(data.user);
     currentUser = data.user;
     currentRole = ROLE_MAP_REVERSE[data.user.role] || role;
-    showAuth('auth-setor');
-    buildSetorGrid();
+    entrarNaSelecaoDeSetor();
   }).catch(function(err) {
     showFormError('cadError', err.message);
   });
@@ -469,13 +516,25 @@ function selectSetor(setorId, setorNome) {
   enterApp();
 }
 
-/* Botão "trocar" no cabeçalho do app — volta pra tela de seleção de setor sem deslogar */
+/* Botão "trocar" no cabeçalho do app — volta pra tela de seleção de setor
+   sem deslogar. Diferente do login, aqui é uma ação explícita da pessoa
+   ("quero ver outra UEP"), então sempre mostra a tela — só restringe a
+   lista às UEPs que ela realmente tem acesso (Diretoria continua vendo
+   todas). */
 function trocarSetor() {
   document.getElementById('userMenu').classList.remove('show');
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
   showAuth('auth-setor');
-  buildSetorGrid();
+  if (currentRole === 'diretoria') {
+    buildSetorGrid();
+  } else {
+    apiFetch('/users/me').then(function(me) {
+      buildSetorGrid(me.ueps || []);
+    }).catch(function() {
+      buildSetorGrid();
+    });
+  }
 }
 
 
@@ -640,10 +699,15 @@ function roleBadge(role) {
   return '<span class="tag role-' + role + '">' + (r ? r.label : role) + '</span>';
 }
 
-/* Monta as <option> de um <select> de UEP a partir da lista já carregada,
-   marcando a UEP atual do usuário como selected (se ele já tiver uma). */
+/* Monta as <option> de um <select multiple> de UEPs a partir da lista já
+   carregada, marcando como "selected" as UEPs que o usuário já tem (um
+   Professor pode ter acesso a mais de uma UEP ao mesmo tempo — ver
+   professor_ueps no backend). */
+/* Monta as <option> de um <select> comum (uma UEP só) — usado no
+   formulário "Adicionar integrante" da aba Minha Equipe, pro Professor
+   escolher em qual das SUAS UEPs a pessoa entra. */
 function montarOpcoesSetor(ueps, uepIdAtual) {
-  var html = '<option value="">Sem UEP definida</option>';
+  var html = '';
   ueps.forEach(function(u) {
     var sel = (uepIdAtual != null && String(uepIdAtual) === String(u.id)) ? ' selected' : '';
     html += '<option value="' + u.id + '"' + sel + '>' + u.nome + '</option>';
@@ -651,9 +715,50 @@ function montarOpcoesSetor(ueps, uepIdAtual) {
   return html;
 }
 
+/* Cache local da última lista de UEPs carregada em Controle de Acesso —
+   usada pelos chips (linha de cada professor e formulário "Conceder novo
+   acesso") pra saber quais UEPs ainda faltam adicionar. */
+var UEPS_CACHE = [];
+
+/* UEPs escolhidas no formulário "Conceder novo acesso" — esse professor
+   ainda nem existe, então não tem como PATCHar nada: fica só em memória
+   até o submit (concederAcesso), que manda tudo junto em uepIds. */
+var novoAcessoUepIds = [];
+
+/* Monta o "chips" de UEPs: uma pilulazinha por UEP já concedida (com um
+   "x" pra tirar) + um <select> pequeno, só com as UEPs que AINDA faltam,
+   pra adicionar uma nova — é a interação que a Diretoria pediu ("abrir uma
+   opção com as UEPs que o professor ainda não tem, e as que ele já tem
+   aparecem com um x pra poder tirar").
+   removeAttr/addAttr são o texto pronto de um atributo onclick="..."/
+   onchange="..." (ver os dois usos abaixo: linha de um professor já salvo
+   chama removerUepDoUsuario/adicionarUepAoUsuario com o id dele; o
+   formulário "Conceder novo acesso" — sem id nenhum ainda — chama
+   removerUepNovoAcesso/adicionarUepNovoAcesso). */
+function montarChipsUeps(uepsAtuais, todasUeps, montarRemoveAttr, montarAddAttr) {
+  var idsAtuais = uepsAtuais.map(function(u) { return u.id; });
+
+  var chips = uepsAtuais.map(function(u) {
+    return '<span class="uep-chip">' + u.nome +
+      '<span class="chip-remove" title="Remover ' + u.nome + '" ' + montarRemoveAttr(u.id) + '>&times;</span></span>';
+  }).join('');
+
+  var disponiveis = todasUeps.filter(function(u) { return idsAtuais.indexOf(u.id) === -1; });
+  var selectHtml = disponiveis.length
+    ? '<select class="uep-add-select" ' + montarAddAttr() + '>' +
+        '<option value="">+ adicionar UEP</option>' +
+        disponiveis.map(function(u) { return '<option value="' + u.id + '">' + u.nome + '</option>'; }).join('') +
+      '</select>'
+    : '';
+
+  return (chips + selectHtml) || '<span class="uep-empty-hint">Nenhuma UEP disponível</span>';
+}
+
 /* Repinta a tabela de professores com acesso — GET /users?role=PROFESSOR + GET /ueps
    (somente Diretoria). Essa tela não mexe mais em perfil nenhum além de Professor:
-   quem administra Aluno/Técnico/Estagiário é o próprio Professor, na aba "Minha Equipe". */
+   quem administra Aluno/Técnico/Estagiário é o próprio Professor, na aba "Minha Equipe".
+   A coluna UEP é o "chips" acima: cada Professor pode ter acesso a mais de
+   uma UEP, e a Diretoria adiciona/remove uma de cada vez. */
 function renderControleAcesso() {
   var tbody = document.getElementById('tabelaAcessos');
   tbody.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
@@ -665,24 +770,24 @@ function renderControleAcesso() {
     var usuarios = results[0] || [];
     var ueps = results[1] || [];
     USERS = usuarios; // cache local pro handler de remover
+    UEPS_CACHE = ueps;
 
-    // o formulário de conceder acesso usa a mesma lista de UEPs, sem nenhuma pré-selecionada
-    document.getElementById('naSetor').innerHTML = montarOpcoesSetor(ueps, null);
+    renderizarChipsNovoAcesso();
 
     var linhas = '';
     usuarios.forEach(function (u) {
-      // BACKEND: users ainda não tem coluna de UEP — quando o campo existir
-      // na resposta de GET /users (ex.: uep_id, igual o resto da API devolve
-      // em snake_case cru do banco), essa linha já pega o valor certo sozinha.
-      var uepIdAtual = u.uep_id != null ? u.uep_id : u.uepId;
+      var chipsHtml = montarChipsUeps(
+        u.ueps || [],
+        ueps,
+        function(uepId) { return 'onclick="removerUepDoUsuario(' + u.id + ',' + uepId + ')"'; },
+        function() { return 'onchange="adicionarUepAoUsuario(' + u.id + ', this)"'; }
+      );
 
       linhas +=
         '<tr>' +
           '<td>' + u.nome + '</td>' +
           '<td>' + u.email + '</td>' +
-          '<td><select class="fake-select" style="min-width:170px;" onchange="alterarSetorUsuario(' + u.id + ', this.value)">' +
-                montarOpcoesSetor(ueps, uepIdAtual) +
-              '</select></td>' +
+          '<td><div class="uep-chips">' + chipsHtml + '</div></td>' +
           '<td>' + statusAcessoBadge(u) + '</td>' +
           '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + u.id + ')">remover</span></td>' +
         '</tr>';
@@ -721,26 +826,66 @@ function aprovarAcesso(userId) {
   });
 }
 
-/* Chamado ao trocar o <select> de UEP de uma linha.
-   BACKEND: hoje isso só funciona de verdade quando o backend tiver:
-   1) uma coluna uep_id em users (migration: ALTER TABLE users ADD COLUMN
-      uep_id INTEGER REFERENCES ueps(id) ON DELETE SET NULL);
-   2) PATCH /users/:id aceitando { uepId } no corpo e gravando essa coluna;
-   3) GET /users devolvendo esse campo em cada usuário (pra tabela já abrir
-      com o setor certo pré-selecionado, sem precisar clicar em nada).
-   Até isso existir, essa chamada vai falhar com erro do backend — o que é
-   esperado, é só a parte do front pronta esperando a API. */
-function alterarSetorUsuario(userId, novoUepId) {
+/* Clique no "x" de um chip de UEP na linha de um professor — tira aquela
+   UEP e manda o conjunto resultante inteiro (PATCH /users/:id { uepIds }),
+   já que a API sempre substitui a lista completa, nunca um item de cada vez. */
+function removerUepDoUsuario(userId, uepId) {
+  var usuario = USERS.find(function(u) { return u.id === userId; });
+  var atuais = (usuario && usuario.ueps) ? usuario.ueps.map(function(u) { return u.id; }) : [];
+  var novasUeps = atuais.filter(function(id) { return id !== uepId; });
+  salvarUepsDoUsuario(userId, novasUeps);
+}
+
+/* Escolha no <select> "+ adicionar UEP" de uma linha — acrescenta essa UEP
+   ao conjunto que o professor já tinha. */
+function adicionarUepAoUsuario(userId, selectEl) {
+  var novoId = Number(selectEl.value);
+  if (!novoId) return;
+  var usuario = USERS.find(function(u) { return u.id === userId; });
+  var atuais = (usuario && usuario.ueps) ? usuario.ueps.map(function(u) { return u.id; }) : [];
+  if (atuais.indexOf(novoId) === -1) atuais.push(novoId);
+  salvarUepsDoUsuario(userId, atuais);
+}
+
+function salvarUepsDoUsuario(userId, uepIds) {
   apiFetch('/users/' + userId, {
     method: 'PATCH',
-    body: JSON.stringify({ uepId: novoUepId ? Number(novoUepId) : null })
+    body: JSON.stringify({ uepIds: uepIds })
   }).then(function() {
     renderControleAcesso();
-    mostrarToast('UEP do usuário atualizada.');
+    mostrarToast('UEPs do usuário atualizadas.');
   }).catch(function(err) {
-    alert('Erro ao alterar UEP: ' + err.message);
-    renderControleAcesso(); // desfaz visualmente a troca no <select>
+    alert('Erro ao alterar UEPs: ' + err.message);
+    renderControleAcesso(); // desfaz visualmente a troca nos chips
   });
+}
+
+/* Chips de UEPs do formulário "Conceder novo acesso" — esse professor
+   ainda não existe (sem id), então só mantém a escolha em novoAcessoUepIds
+   até o submit; adicionar/remover aqui só repinta esse pedacinho, não a
+   tabela inteira. */
+function renderizarChipsNovoAcesso() {
+  var container = document.getElementById('naSetorChips');
+  if (!container) return;
+  var uepsEscolhidas = UEPS_CACHE.filter(function(u) { return novoAcessoUepIds.indexOf(u.id) !== -1; });
+  container.innerHTML = montarChipsUeps(
+    uepsEscolhidas,
+    UEPS_CACHE,
+    function(uepId) { return 'onclick="removerUepNovoAcesso(' + uepId + ')"'; },
+    function() { return 'onchange="adicionarUepNovoAcesso(this)"'; }
+  );
+}
+
+function removerUepNovoAcesso(uepId) {
+  novoAcessoUepIds = novoAcessoUepIds.filter(function(id) { return id !== uepId; });
+  renderizarChipsNovoAcesso();
+}
+
+function adicionarUepNovoAcesso(selectEl) {
+  var novoId = Number(selectEl.value);
+  if (!novoId) return;
+  if (novoAcessoUepIds.indexOf(novoId) === -1) novoAcessoUepIds.push(novoId);
+  renderizarChipsNovoAcesso();
 }
 
 /* Chamado ao trocar o <select> de perfil de um integrante da equipe —
@@ -788,15 +933,14 @@ function removerAcesso(userId) {
 /* onsubmit do formulário "Conceder novo acesso" (Diretoria) — POST /users.
    Perfil é sempre PROFESSOR aqui: a Diretoria não cadastra Aluno/Técnico/
    Estagiário diretamente, quem faz isso é o próprio Professor na aba
-   "Minha Equipe" (ver concederAcessoEquipe, seção 13).
-   BACKEND: uepId só vai ser persistido de verdade quando o backend aceitar
-   esse campo em POST /users (mesma dependência do alterarSetorUsuario acima). */
+   "Minha Equipe" (ver concederAcessoEquipe, seção 13). uepIds é opcional:
+   dá pra conceder o acesso sem marcar nenhuma UEP ainda e fazer isso
+   depois, direto na tabela (ver removerUepDoUsuario/adicionarUepAoUsuario). */
 function concederAcesso() {
   hideFormError('acessoError');
 
   var nome = document.getElementById('naNome').value.trim();
   var email = document.getElementById('naEmail').value.trim().toLowerCase();
-  var uepId = document.getElementById('naSetor').value;
   var senha = document.getElementById('naSenha').value;
 
   apiFetch('/users', {
@@ -806,10 +950,11 @@ function concederAcesso() {
       email: email,
       senha: senha,
       role: 'PROFESSOR',
-      uepId: uepId ? Number(uepId) : null
+      uepIds: novoAcessoUepIds
     })
   }).then(function() {
     document.getElementById('novoAcessoForm').reset();
+    novoAcessoUepIds = [];
     renderControleAcesso();
     mostrarToast('Acesso de Professor concedido a ' + nome + '.');
   }).catch(function(err) {
@@ -821,31 +966,13 @@ function concederAcesso() {
 /* =====================================================================
    13. MINHA EQUIPE (aba exclusiva do Professor)
    O Professor cadastra e gerencia só os próprios Aluno/Técnico/Estagiário.
-   UEP e vínculo com o Professor são sempre implícitos (o próprio Professor
-   logado) — não existe campo nenhum aqui pra escolher isso, de propósito.
-
-   BACKEND — isso ainda não funciona de ponta a ponta, falta:
-   1) Migration: coluna nova em users —
-      ALTER TABLE users ADD COLUMN professor_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-   2) Autorização: hoje GET/POST/PATCH/DELETE /users são só ADMIN
-      (USER_MANAGEMENT_ROLES em config/roles.js). Precisa liberar pra
-      PROFESSOR também, mas com escopo — um Professor só pode ver/criar/
-      editar/remover usuários onde professor_id = ele mesmo, e só com role
-      ALUNO/TECNICO/ESTAGIARIO. Isso é regra de autorização de verdade,
-      não só esconder botão no front: mesmo escondendo a tela pra quem não
-      é Professor, a API tem que recusar sozinha se alguém tentar burlar
-      chamando a rota direto.
-   3) IMPORTANTE: professor_id e uep_id de quem for criado aqui NUNCA devem
-      vir do corpo da requisição — o backend tem que derivar os dois do
-      próprio token JWT de quem está logado (o Professor autenticado), pra
-      um Professor não conseguir, por exemplo, criar um Aluno apontando pra
-      outro professor só editando o payload da requisição.
-   4) GET /users precisa aceitar ?professorId= (ou, melhor ainda: quando
-      quem chama é PROFESSOR, o backend já filtra pelos próprios liderados
-      sozinho, ignorando esse parâmetro se vier — mais seguro que confiar
-      no que o cliente manda).
-   Até isso existir, os fetch() abaixo vão voltar 403 (Forbidden) — é o
-   esperado, é só a parte do front pronta esperando a API.
+   professor_id é sempre implícito (vem do token, nunca do corpo). uep_id
+   também não é livre: o Professor escolhe, no formulário, em QUAL das
+   SUAS UEPs (professor_ueps) a pessoa entra — o backend valida que essa
+   UEP está mesmo no conjunto dele antes de aceitar (users.policy.js +
+   users.service.js -> escolherUepDaEquipe). Ver também users.routes.js
+   (GET/POST/PATCH/DELETE /users liberado pra PROFESSOR, escopado à
+   própria equipe) e migrations 006/007.
    ===================================================================== */
 
 /* Perfis que um Professor pode atribuir a alguém da própria equipe —
@@ -860,13 +987,30 @@ function buildEquipeRoleOptions(selecionado) {
   return html;
 }
 
-/* Repinta a tabela "Minha Equipe" — GET /users?professorId=<eu mesmo> */
+/* Repinta a tabela "Minha Equipe" — GET /users?professorId=<eu mesmo> —
+   e, junto, recarrega as UEPs do próprio Professor (GET /users/me) pra
+   popular o <select> de UEP do formulário "Adicionar integrante": um
+   Professor com mais de uma UEP escolhe em qual delas a pessoa entra; com
+   só uma, o <select> já fica com essa única opção. */
 function renderMinhaEquipe() {
   var tbody = document.getElementById('tabelaEquipe');
   tbody.innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
 
-  apiFetch('/users?professorId=' + currentUser.id).then(function(usuarios) {
+  Promise.all([
+    apiFetch('/users?professorId=' + currentUser.id),
+    apiFetch('/users/me')
+  ]).then(function(results) {
+    var usuarios = results[0] || [];
+    var me = results[1] || {};
     EQUIPE = usuarios || [];
+    MINHA_UEPS = me.ueps || [];
+
+    var eqSetorEl = document.getElementById('eqSetor');
+    if (eqSetorEl) {
+      eqSetorEl.innerHTML = MINHA_UEPS.length
+        ? montarOpcoesSetor(MINHA_UEPS, MINHA_UEPS.length === 1 ? MINHA_UEPS[0].id : null)
+        : '<option value="">Nenhuma UEP liberada ainda</option>';
+    }
 
     var linhas = '';
     EQUIPE.forEach(function (u) {
@@ -911,9 +1055,11 @@ function removerMembroEquipe(userId) {
 }
 
 /* onsubmit do formulário "Adicionar integrante" — POST /users.
-   Não manda uepId nem professorId no corpo de propósito: como o comentário
-   BACKEND lá em cima explica, esses dois têm que ser decididos pelo próprio
-   backend a partir de quem está logado, nunca vir do que o cliente manda. */
+   Não manda professorId no corpo de propósito: é sempre decidido pelo
+   backend a partir de quem está logado (o token), nunca do que o cliente
+   manda. uepId aqui é só "em qual UEP MINHA (do professor logado) essa
+   pessoa entra" — o backend valida que é mesmo uma UEP que este professor
+   tem acesso antes de aceitar (ver users.service.js -> escolherUepDaEquipe). */
 function concederAcessoEquipe() {
   hideFormError('equipeError');
 
@@ -921,11 +1067,17 @@ function concederAcessoEquipe() {
   var email = document.getElementById('eqEmail').value.trim().toLowerCase();
   var roleFrontend = document.getElementById('eqRole').value;
   var senha = document.getElementById('eqSenha').value;
+  var uepId = document.getElementById('eqSetor').value;
   var backendRole = ROLE_MAP[roleFrontend] || 'ALUNO';
+
+  if (!uepId) {
+    showFormError('equipeError', 'Selecione em qual das suas UEPs essa pessoa vai entrar.');
+    return;
+  }
 
   apiFetch('/users', {
     method: 'POST',
-    body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole })
+    body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole, uepId: Number(uepId) })
   }).then(function() {
     document.getElementById('novaEquipeForm').reset();
     renderMinhaEquipe();
@@ -1018,8 +1170,9 @@ function logout() {
 buildCadastroRoleOptions();
 // eqRole (formulário "Adicionar integrante" da aba Minha Equipe) é populado
 // aqui porque é estático — sempre as mesmas 3 opções, não depende de fetch
-// nenhum. naSetor, por outro lado, só é montado dentro de renderControleAcesso(),
-// porque a lista de UEPs vem de GET /ueps (precisa de token).
+// nenhum. Os chips de UEP (naSetorChips), por outro lado, só são montados
+// dentro de renderControleAcesso(), porque a lista de UEPs vem de GET
+// /ueps (precisa de token).
 document.getElementById('eqRole').innerHTML = buildEquipeRoleOptions(null);
 
 // Rede corporativa/escolar bloqueando accounts.google.com, adblock, etc. —

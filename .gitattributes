@@ -1,0 +1,8 @@
+# Garante final de linha LF para scripts que rodam dentro de containers
+# Linux, mesmo quando o repositório é clonado/commitado no Windows (onde o
+# Git costuma converter para CRLF por padrão). Um shebang "#!/bin/sh\r"
+# quebra a execução do script dentro do container com erro "not found".
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
