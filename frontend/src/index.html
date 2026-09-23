@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- O site tem tema próprio, sempre claro (não tem um tema escuro definido
+     em CSS nenhum). Sem isso, o Chrome/Edge com "escurecer sites
+     automaticamente" ligado reescreve as cores sozinho e destrói contraste
+     de elementos pequenos (como os chips de UEP do Controle de Acesso). -->
+<meta name="color-scheme" content="light">
 <title>SISGEP</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E %3Cg transform='translate(7,1)'%3E %3Ccircle cx='5' cy='5' r='5' fill='%23cd191e'/%3E %3Crect x='12' y='0' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='24' y='0' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='0' y='12' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='12' y='12' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='0' y='24' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='12' y='24' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='24' y='24' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='0' y='36' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3Crect x='12' y='36' width='10' height='10' rx='2' fill='%232f9e41'/%3E %3C/g%3E %3C/svg%3E">
 <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css">
@@ -310,8 +315,9 @@
 
   <!-- CONTROLE DE ACESSO (somente Diretoria) — só gerencia contas de Professor.
        Cada Professor cuida da própria equipe (Aluno/Técnico/Estagiário) na
-       aba "Minha Equipe" logo abaixo, não aqui. -->
-  <!-- BACKEND: GET/POST/PATCH/DELETE /users?role=PROFESSOR — gerenciar quem é Professor e em qual UEP -->
+       aba "Minha Equipe" logo abaixo, não aqui. A coluna/campo de UEP é um
+       <select multiple>: um Professor pode ter acesso a mais de uma UEP ao
+       mesmo tempo (ver professor_ueps no backend, migration 007). -->
   <div class="screen" id="acessos">
     <div class="page-head"><div><h1>Controle de Acesso</h1><p>Gerencie quais professores têm acesso ao sistema e a qual UEP cada um está vinculado</p></div></div>
 
@@ -325,7 +331,7 @@
     <form class="toolbar" id="novoAcessoForm" onsubmit="event.preventDefault(); concederAcesso();">
       <div class="fake-input"><input id="naNome" type="text" placeholder="Nome completo" required></div>
       <div class="fake-input"><input id="naEmail" type="email" placeholder="E-mail institucional" required></div>
-      <select class="fake-select" id="naSetor"><option value="">Sem UEP definida</option></select>
+      <div class="uep-chips" id="naSetorChips" title="UEPs (opcional, dá pra conceder depois)"></div>
       <div class="fake-input"><input id="naSenha" type="password" placeholder="Senha temporária" required></div>
       <button type="submit" class="btn"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Conceder acesso</button>
     </form>
@@ -333,9 +339,11 @@
   </div>
 
   <!-- MINHA EQUIPE (somente Professor) — cada Professor cadastra e gerencia
-       só os próprios Alunos/Técnicos/Estagiários. UEP e vínculo com o
-       Professor são implícitos (o próprio Professor logado), não dá pra
-       escolher aqui — ver comentário BACKEND na seção 13 do script.js. -->
+       só os próprios Alunos/Técnicos/Estagiários. O vínculo com o Professor
+       (professor_id) é sempre implícito (o próprio Professor logado, vem
+       do token). A UEP (eqSetor) já não é implícita: se o Professor tem
+       mais de uma UEP liberada pela Diretoria, ele escolhe em qual delas
+       cada pessoa entra — ver seção 13 do script.js. -->
   <!-- BACKEND: GET/POST/PATCH/DELETE /users?professorId=<eu mesmo> — escopado ao Professor autenticado -->
   <div class="screen" id="equipe">
     <div class="page-head"><div><h1>Minha Equipe</h1><p>Gerencie os alunos, técnicos e estagiários vinculados a você</p></div></div>
@@ -351,6 +359,7 @@
       <div class="fake-input"><input id="eqNome" type="text" placeholder="Nome completo" required></div>
       <div class="fake-input"><input id="eqEmail" type="email" placeholder="E-mail" required></div>
       <select class="fake-select" id="eqRole"></select>
+      <select class="fake-select" id="eqSetor" title="Em qual das suas UEPs essa pessoa vai entrar"></select>
       <div class="fake-input"><input id="eqSenha" type="password" placeholder="Senha temporária" required></div>
       <button type="submit" class="btn"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Adicionar à equipe</button>
     </form>

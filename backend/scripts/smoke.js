@@ -336,11 +336,12 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
   const sufixo = Date.now();
   const senhaProf = "senha123";
   let uepsSemente = [];
-  let profA = null;
-  let profB = null;
+  let profA = null; // vai ter DUAS UEPs
+  let profB = null; // vai ter UMA UEP só
   let tokenProfA = null;
   let tokenProfB = null;
   let alunoEquipeId = null;
+  let alunoEquipeBId = null;
 
   await checa(6, "UEPs semeadas disponiveis para vincular professores", async () => {
     const { dados } = await api("/ueps", { token: tokenAdmin, esperado: 200 });
@@ -348,25 +349,36 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     assert(uepsSemente.length >= 2, "precisa de ao menos 2 UEPs semeadas");
   });
 
-  await checa(6, "ADMIN concede acesso de PROFESSOR com UEP (POST /users)", async () => {
-    const criar = async (nome) => {
-      const { dados } = await api("/users", {
-        metodo: "POST",
-        token: tokenAdmin,
-        body: {
-          nome,
-          email: `smoke.${nome.toLowerCase()}.${sufixo}@ifpe.edu.br`,
-          senha: senhaProf,
-          role: "PROFESSOR",
-          uepId: uepsSemente[0],
-        },
-        esperado: 201,
-      });
-      return dados;
-    };
-    profA = await criar("ProfA");
-    profB = await criar("ProfB");
-    assert(profA.uep_id === uepsSemente[0], `uep_id esperado ${uepsSemente[0]}, veio ${profA.uep_id}`);
+  await checa(6, "ADMIN concede acesso de PROFESSOR com uepIds (POST /users)", async () => {
+    const { dados: a } = await api("/users", {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: {
+        nome: "ProfA",
+        email: `smoke.profa.${sufixo}@ifpe.edu.br`,
+        senha: senhaProf,
+        role: "PROFESSOR",
+        uepIds: [uepsSemente[0], uepsSemente[1]], // duas UEPs
+      },
+      esperado: 201,
+    });
+    profA = a;
+    assert(Array.isArray(profA.ueps) && profA.ueps.length === 2, `ProfA deveria ter 2 ueps, veio ${JSON.stringify(profA.ueps)}`);
+
+    const { dados: b } = await api("/users", {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: {
+        nome: "ProfB",
+        email: `smoke.profb.${sufixo}@ifpe.edu.br`,
+        senha: senhaProf,
+        role: "PROFESSOR",
+        uepIds: [uepsSemente[0]], // uma UEP só
+      },
+      esperado: 201,
+    });
+    profB = b;
+    assert(Array.isArray(profB.ueps) && profB.ueps.length === 1, `ProfB deveria ter 1 uep, veio ${JSON.stringify(profB.ueps)}`);
   });
 
   await checa(6, "ADMIN nao cria ALUNO direto (403)", async () => {
@@ -386,12 +398,20 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     tokenProfB = await login(profB.email);
   });
 
+  await checa(6, "GET /users/me devolve as UEPs certas (multipla x unica) — base do pular-tela-de-selecao", async () => {
+    const { dados: meA } = await api("/users/me", { token: tokenProfA, esperado: 200 });
+    assert(meA.ueps.length === 2, `ProfA deveria ver 2 ueps em /users/me, veio ${JSON.stringify(meA.ueps)}`);
+
+    const { dados: meB } = await api("/users/me", { token: tokenProfB, esperado: 200 });
+    assert(meB.ueps.length === 1, `ProfB deveria ver 1 uep em /users/me, veio ${JSON.stringify(meB.ueps)}`);
+  });
+
   await checa(6, "PROFESSOR: Minha Equipe comeca vazia", async () => {
     const { dados } = await api(`/users?professorId=${profA.id}`, { token: tokenProfA, esperado: 200 });
     assert(Array.isArray(dados) && dados.length === 0, `esperado [], veio ${JSON.stringify(dados)}`);
   });
 
-  await checa(6, "PROFESSOR cria ALUNO: professor_id/uep_id vem do token, nao do corpo", async () => {
+  await checa(6, "PROFESSOR cria ALUNO escolhendo uma das SUAS UEPs; professor_id vem do token, nao do corpo", async () => {
     const { dados } = await api("/users", {
       metodo: "POST",
       token: tokenProfA,
@@ -401,12 +421,46 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
         senha: "senha123",
         role: "ALUNO",
         professorId: profB.id, // tentativa de forjar — deve ser ignorada
-        uepId: uepsSemente[1], // idem
+        uepId: uepsSemente[1], // uma das DUAS UEPs de ProfA — valido
       },
       esperado: 201,
     });
     alunoEquipeId = dados.id;
     assert(dados.professor_id === profA.id, `professor_id esperado ${profA.id}, veio ${dados.professor_id}`);
+    assert(dados.uep_id === uepsSemente[1], `uep_id esperado ${uepsSemente[1]}, veio ${dados.uep_id}`);
+  });
+
+  await checa(6, "PROFESSOR nao consegue colocar equipe numa UEP que nao e dele (403)", async () => {
+    // uepId aqui e uma UEP que existe (uepId, da secao de UEPs no topo do
+    // arquivo) mas nao esta entre as duas de ProfA nem a de ProfB.
+    await api("/users", {
+      metodo: "POST",
+      token: tokenProfA,
+      body: {
+        nome: "Tentativa Forjada",
+        email: `smoke.forjado.${sufixo}@teste.com`,
+        senha: "senha123",
+        role: "ALUNO",
+        uepId: uepId,
+      },
+      esperado: 403,
+    });
+  });
+
+  await checa(6, "PROFESSOR com UMA UEP so nao precisa escolher: cai nela sozinho", async () => {
+    const { dados } = await api("/users", {
+      metodo: "POST",
+      token: tokenProfB,
+      body: {
+        nome: "Aluno da Equipe B",
+        email: `smoke.equipeb.${sufixo}@teste.com`,
+        senha: "senha123",
+        role: "ALUNO",
+      },
+      esperado: 201,
+    });
+    alunoEquipeBId = dados.id;
+    assert(dados.professor_id === profB.id, `professor_id esperado ${profB.id}, veio ${dados.professor_id}`);
     assert(dados.uep_id === uepsSemente[0], `uep_id esperado ${uepsSemente[0]}, veio ${dados.uep_id}`);
   });
 
@@ -465,23 +519,32 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     });
   });
 
-  await checa(6, "ADMIN troca a UEP do Professor e a equipe acompanha", async () => {
+  await checa(6, "ADMIN substitui o conjunto de UEPs do Professor (uepIds) e quem ficou fora perde a UEP", async () => {
+    // alunoEquipeId esta em uepsSemente[1] (ver criacao acima). Tirando essa
+    // UEP do conjunto de ProfA, ele deveria ficar "solto" (uep_id = NULL).
     const { dados } = await api(`/users/${profA.id}`, {
       metodo: "PATCH",
       token: tokenAdmin,
-      body: { uepId: uepsSemente[1] },
+      body: { uepIds: [uepsSemente[0]] },
       esperado: 200,
     });
-    assert(dados.uep_id === uepsSemente[1], `uep_id esperado ${uepsSemente[1]}, veio ${dados.uep_id}`);
+    assert(dados.ueps.length === 1 && dados.ueps[0].id === uepsSemente[0], `ueps esperado so [${uepsSemente[0]}], veio ${JSON.stringify(dados.ueps)}`);
+
     const membro = await api(`/users/${alunoEquipeId}`, { token: tokenProfA, esperado: 200 });
-    assert(membro.dados.uep_id === uepsSemente[1], `equipe nao acompanhou: ${membro.dados.uep_id}`);
+    assert(membro.dados.uep_id === null, `equipe deveria ter ficado sem UEP, veio ${membro.dados.uep_id}`);
   });
 
-  await checa(6, "PROFESSOR nao muda UEP da equipe (403)", async () => {
+  await checa(6, "PROFESSOR nao muda UEP da equipe, nem por uepId nem por uepIds (403)", async () => {
     await api(`/users/${alunoEquipeId}`, {
       metodo: "PATCH",
       token: tokenProfA,
       body: { uepId: uepsSemente[0] },
+      esperado: 403,
+    });
+    await api(`/users/${alunoEquipeId}`, {
+      metodo: "PATCH",
+      token: tokenProfA,
+      body: { uepIds: [uepsSemente[0]] },
       esperado: 403,
     });
   });
@@ -496,6 +559,9 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     await api(`/ueps/${uepId}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
     if (alunoEquipeId) {
       await api(`/users/${alunoEquipeId}`, { metodo: "DELETE", token: tokenProfA, esperado: 204 });
+    }
+    if (alunoEquipeBId) {
+      await api(`/users/${alunoEquipeBId}`, { metodo: "DELETE", token: tokenProfB, esperado: 204 });
     }
     for (const p of [profA, profB]) {
       if (p) await api(`/users/${p.id}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
