@@ -1,22 +1,30 @@
 import { query } from "../../config/db.js";
 
+const PUBLIC_COLUMNS = `id, nome, email, role, ativo, uep_id, professor_id, created_at, updated_at`;
+
 const BASE_SELECT = `
-  SELECT id, nome, email, role, ativo, created_at, updated_at
+  SELECT ${PUBLIC_COLUMNS}
   FROM users
 `;
 
 export const usersRepository = {
-  async findAll({ role, ativo } = {}) {
+  /* roles: lista de papéis permitidos (vem já escopada do users.policy.js —
+     lista vazia devolve nenhum usuário, nunca "todos"). */
+  async findAll({ roles, ativo, professorId } = {}) {
     const conditions = [];
     const params = [];
 
-    if (role) {
-      params.push(role);
-      conditions.push(`role = $${params.length}`);
+    if (roles !== undefined) {
+      params.push(roles);
+      conditions.push(`role = ANY($${params.length}::user_role[])`);
     }
     if (ativo !== undefined) {
       params.push(ativo);
       conditions.push(`ativo = $${params.length}`);
+    }
+    if (professorId !== undefined) {
+      params.push(professorId);
+      conditions.push(`professor_id = $${params.length}`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -31,18 +39,19 @@ export const usersRepository = {
 
   async findByEmail(email) {
     const { rows } = await query(
-      `SELECT id, nome, email, password_hash, google_id, role, ativo FROM users WHERE email = $1`,
+      `SELECT id, nome, email, password_hash, google_id, role, ativo, uep_id, professor_id
+       FROM users WHERE email = $1`,
       [email]
     );
     return rows[0] ?? null;
   },
 
-  async create({ nome, email, passwordHash, role }) {
+  async create({ nome, email, passwordHash, role, ativo = true, uepId = null, professorId = null }) {
     const { rows } = await query(
-      `INSERT INTO users (nome, email, password_hash, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, nome, email, role, ativo, created_at, updated_at`,
-      [nome, email, passwordHash, role]
+      `INSERT INTO users (nome, email, password_hash, role, ativo, uep_id, professor_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING ${PUBLIC_COLUMNS}`,
+      [nome, email, passwordHash, role, ativo, uepId, professorId]
     );
     return rows[0];
   },
@@ -50,12 +59,12 @@ export const usersRepository = {
   /* Cria uma conta a partir do primeiro login com Google — sem senha
      (password_hash fica NULL; ver migration 005_google_auth.sql, que
      torna essa coluna opcional). "ativo" já vem decidido pelo
-     auth.service.js (institucional = true, senão pendente = false). */
+     auth.service.js. */
   async createGoogleUser({ nome, email, googleId, role, ativo }) {
     const { rows } = await query(
       `INSERT INTO users (nome, email, password_hash, google_id, role, ativo)
        VALUES ($1, $2, NULL, $3, $4, $5)
-       RETURNING id, nome, email, role, ativo, google_id, created_at, updated_at`,
+       RETURNING ${PUBLIC_COLUMNS}, google_id`,
       [nome, email, googleId, role, ativo]
     );
     return rows[0];
@@ -70,18 +79,30 @@ export const usersRepository = {
     ]);
   },
 
-  async update(id, { nome, role, ativo }) {
+  /* uepId segue a convenção: undefined = não mexe; null = desvincula. */
+  async update(id, { nome, role, ativo, uepId }) {
+    const mudaUep = uepId !== undefined;
     const { rows } = await query(
       `UPDATE users
        SET nome = COALESCE($2, nome),
            role = COALESCE($3, role),
            ativo = COALESCE($4, ativo),
+           uep_id = CASE WHEN $5 THEN $6::int ELSE uep_id END,
            updated_at = now()
        WHERE id = $1
-       RETURNING id, nome, email, role, ativo, created_at, updated_at`,
-      [id, nome ?? null, role ?? null, ativo ?? null]
+       RETURNING ${PUBLIC_COLUMNS}`,
+      [id, nome ?? null, role ?? null, ativo ?? null, mudaUep, mudaUep ? uepId : null]
     );
     return rows[0] ?? null;
+  },
+
+  /* Quando a Diretoria troca a UEP de um Professor, a equipe dele vai junto
+     (a UEP de um integrante é sempre a do professor responsável). */
+  async updateTeamUep(professorId, uepId) {
+    await query(
+      `UPDATE users SET uep_id = $2, updated_at = now() WHERE professor_id = $1`,
+      [professorId, uepId]
+    );
   },
 
   async updatePassword(id, passwordHash) {
