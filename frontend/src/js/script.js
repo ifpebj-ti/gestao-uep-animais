@@ -114,7 +114,7 @@ var ROLES = {
   professor: {
     label: 'Professor',
     desc: 'Orientação acadêmica e acompanhamento de projetos',
-    cadastro: true,
+    cadastro: false, // Professor não se autocadastra: a Diretoria concede o acesso (ou entra com Google e fica pendente)
     institucional: true // exige e-mail @ifpe.edu.br
   },
   diretoria: {

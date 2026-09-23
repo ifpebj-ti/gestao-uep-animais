@@ -201,18 +201,39 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Tags da imagem no GHCR (docker/metadata-action):
+      #   release v0.1.0 (git tag) -> :0.1.0, :0.1 e :latest
+      #   push na main              -> :main e :sha-<7 chars>
+      #   pull request              -> :pr-<numero> (so build + Trivy, nao publica)
+      # A tag de release TEM que seguir o formato vX.Y.Z (ex.: v0.1.0) pra
+      # virar versao; tag fora desse padrao nao gera imagem versionada.
+      - name: Definir tags da imagem
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+
       - name: Build da imagem
         run: |
-          docker build -t ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }} ./${{ matrix.service }}
+          docker build \
+            $(echo "${{ steps.meta.outputs.tags }}" | sed 's/^/-t /') \
+            ./${{ matrix.service }}
 
       - name: Analise de vulnerabilidades (Trivy)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.meta.outputs.version }}
           severity: "CRITICAL"
           exit-code: "1"
 
       - name: Publicar imagem no registry
         if: github.event_name == 'push'
         run: |
-          docker push ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          docker push --all-tags ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}

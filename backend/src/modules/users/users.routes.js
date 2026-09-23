@@ -11,7 +11,8 @@ router.use(authenticate);
 // Qualquer usuário autenticado pode ver o próprio perfil
 router.get("/me", usersController.me);
 
-// Gestão de usuários/perfis: somente ADMIN (Sprint 3 - RBAC)
+// Gestão de usuários: ADMIN (só Professores) e PROFESSOR (só a própria
+// equipe). O escopo de cada um é aplicado no service (users.policy.js).
 router.get("/", authorize(...USER_MANAGEMENT_ROLES), usersController.list);
 router.get("/:id", authorize(...USER_MANAGEMENT_ROLES), usersController.getById);
 router.post("/", authorize(...USER_MANAGEMENT_ROLES), usersController.create);
