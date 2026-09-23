@@ -1,0 +1,16 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Frontend estático (HTML/CSS/JS) da Gestão UEP",
+  "scripts": {
+    "lint:css": "stylelint \"src/**/*.css\"",
+    "lint:html": "htmlhint \"src/**/*.html\""
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "htmlhint": "^1.1.4",
+    "stylelint": "^16.26.1",
+    "stylelint-config-recommended": "^14.0.1"
+  }
+}
