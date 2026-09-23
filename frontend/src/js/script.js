@@ -126,25 +126,26 @@ var ROLES = {
 };
 
 /* Regras de visibilidade das abas por perfil (ver SEÇÃO 10 — toggleTabsByRole):
-   - .op-only    → abas "operacionais" (Painel, Gestão do Rebanho, Estoque de Ração).
-                   Visíveis para todos os perfis, EXCETO Diretoria.
-   - .admin-only → abas "Relatórios (PDF)" e "Controle de Acesso". Visíveis SOMENTE para Diretoria.
+   - .op-only         → abas "operacionais" (Painel, Gestão do Rebanho, Estoque de Ração).
+                        Visíveis para todos os perfis, EXCETO Diretoria.
+   - .admin-only      → abas "Relatórios (PDF)" e "Controle de Acesso". Visíveis SOMENTE para Diretoria.
+   - .professor-only  → aba "Minha Equipe". Visível SOMENTE para Professor.
    - Notas Fiscais não tem classe: fica visível para todo mundo, sempre.
-   Resultado prático: a Diretoria só enxerga Notas Fiscais + Relatórios + Controle de Acesso. */
+   Resultado prático: a Diretoria só enxerga Notas Fiscais + Relatórios + Controle de Acesso
+   (e lá só mexe em contas de Professor); o Professor ganha a aba extra "Minha Equipe",
+   de onde ele cadastra e gerencia os próprios Alunos/Técnicos/Estagiários. */
 
 
 /* =====================================================================
-   2. CONTAS DE DEMONSTRAÇÃO (USERS)
-   Como não existe backend ainda, esta lista faz o papel de um banco de
-   usuários em memória: é nela que handleLogin() procura o e-mail/senha
-   digitados, e é nela que a Diretoria mexe através da aba "Controle de
-   Acesso" (conceder/alterar/remover acesso).
-   ATENÇÃO: isso é só para demonstração — some ao recarregar a página,
-   e senha em texto puro aqui não tem NENHUM valor de segurança real.
-   BACKEND: troque por GET /api/usuarios e valide login/senha no servidor,
-   nunca no cliente.
+   2. CACHE LOCAL DE USUÁRIOS
+   USERS guarda a última listagem de GET /users?role=PROFESSOR (tela
+   Controle de Acesso, só Diretoria). EQUIPE guarda a última listagem de
+   GET /users?professorId=... (tela Minha Equipe, só Professor). Os dois
+   servem só pra achar o nome/e-mail de alguém na hora de montar a
+   confirmação de "remover" — não são fonte de verdade de nada.
    ===================================================================== */
-var USERS = []; // cache local da ultima listagem GET /users, usado pela tela de Controle de Acesso
+var USERS = [];
+var EQUIPE = [];
 
 
 /* =====================================================================
@@ -639,18 +640,6 @@ function roleBadge(role) {
   return '<span class="tag role-' + role + '">' + (r ? r.label : role) + '</span>';
 }
 
-/* Gera as <option> de um <select> de perfil. Se "todos" for true, inclui
-   também Diretoria — usado no formulário de "conceder novo acesso",
-   que é o único lugar onde faz sentido atribuir esse perfil. */
-function buildRoleOptions(selecionado, todos) {
-  var html = '';
-  for (var key in ROLES) {
-    if (!todos && !ROLES[key].cadastro) continue; // esconde Diretoria fora do formulário de concessão
-    html += '<option value="' + key + '"' + (key === selecionado ? ' selected' : '') + '>' + ROLES[key].label + '</option>';
-  }
-  return html;
-}
-
 /* Monta as <option> de um <select> de UEP a partir da lista já carregada,
    marcando a UEP atual do usuário como selected (se ele já tiver uma). */
 function montarOpcoesSetor(ueps, uepIdAtual) {
@@ -662,28 +651,26 @@ function montarOpcoesSetor(ueps, uepIdAtual) {
   return html;
 }
 
-/* Repinta a tabela de contas com acesso — GET /users + GET /ueps (somente ADMIN).
-   Busca as duas coisas juntas porque cada linha da tabela precisa de um
-   <select> de UEP, e o formulário de "conceder novo acesso" também usa essa
-   mesma lista. */
+/* Repinta a tabela de professores com acesso — GET /users?role=PROFESSOR + GET /ueps
+   (somente Diretoria). Essa tela não mexe mais em perfil nenhum além de Professor:
+   quem administra Aluno/Técnico/Estagiário é o próprio Professor, na aba "Minha Equipe". */
 function renderControleAcesso() {
   var tbody = document.getElementById('tabelaAcessos');
-  tbody.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
 
   Promise.all([
-    apiFetch('/users'),
+    apiFetch('/users?role=PROFESSOR'),
     apiFetch('/ueps')
   ]).then(function(results) {
     var usuarios = results[0] || [];
     var ueps = results[1] || [];
-    USERS = usuarios; // cache local para os handlers de alterar/remover
+    USERS = usuarios; // cache local pro handler de remover
 
     // o formulário de conceder acesso usa a mesma lista de UEPs, sem nenhuma pré-selecionada
     document.getElementById('naSetor').innerHTML = montarOpcoesSetor(ueps, null);
 
     var linhas = '';
     usuarios.forEach(function (u) {
-      var roleFrontend = ROLE_MAP_REVERSE[u.role] || 'aluno';
       // BACKEND: users ainda não tem coluna de UEP — quando o campo existir
       // na resposta de GET /users (ex.: uep_id, igual o resto da API devolve
       // em snake_case cru do banco), essa linha já pega o valor certo sozinha.
@@ -693,10 +680,6 @@ function renderControleAcesso() {
         '<tr>' +
           '<td>' + u.nome + '</td>' +
           '<td>' + u.email + '</td>' +
-          '<td>' + roleBadge(roleFrontend) + '</td>' +
-          '<td><select class="fake-select" style="min-width:150px;" onchange="alterarAcesso(' + u.id + ', this.value)">' +
-                buildRoleOptions(roleFrontend, true) +
-              '</select></td>' +
           '<td><select class="fake-select" style="min-width:170px;" onchange="alterarSetorUsuario(' + u.id + ', this.value)">' +
                 montarOpcoesSetor(ueps, uepIdAtual) +
               '</select></td>' +
@@ -704,9 +687,9 @@ function renderControleAcesso() {
           '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerAcesso(' + u.id + ')">remover</span></td>' +
         '</tr>';
     });
-    tbody.innerHTML = linhas || '<tr><td colspan="7">Nenhum usuário cadastrado.</td></tr>';
+    tbody.innerHTML = linhas || '<tr><td colspan="5">Nenhum professor cadastrado.</td></tr>';
   }).catch(function(err) {
-    tbody.innerHTML = '<tr><td colspan="7" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
   });
 }
 
@@ -760,26 +743,26 @@ function alterarSetorUsuario(userId, novoUepId) {
   });
 }
 
-/* Chamado ao trocar o <select> de perfil de uma linha — PATCH /users/:id */
-function alterarAcesso(userId, novoRoleFrontend) {
+/* Chamado ao trocar o <select> de perfil de um integrante da equipe —
+   PATCH /users/:id. Só existe aqui dentro (tela "Minha Equipe"), então o
+   <select> já vem restrito a Aluno/Técnico/Estagiário (ver
+   buildEquipeRoleOptions) — não dá pra promover ninguém a Professor ou
+   Diretoria por essa tela. */
+function alterarPerfilEquipe(userId, novoRoleFrontend) {
   var backendRole = ROLE_MAP[novoRoleFrontend] || 'ALUNO';
   apiFetch('/users/' + userId, {
     method: 'PATCH',
-    // ativo:true junto com o role: na pratica, quem troca o perfil de
-    // alguem aqui esta decidindo dar acesso a essa pessoa com esse perfil —
-    // inclusive contas pendentes (criadas via Google com dominio nao-
-    // institucional, ver auth.service.js -> loginWithGoogle). Sem isso, dava
-    // pra trocar o perfil de uma conta pendente pra Professor e ela continuar
-    // bloqueada no login, porque "Alterar perfil" e "aprovar" eram acoes
-    // separadas — confuso, e foi exatamente o que aconteceu num teste real.
-    // Pra quem ja estava ativo, mandar ativo:true de novo e inofensivo.
+    // ativo:true junto com o role: mesmo raciocínio do Controle de Acesso —
+    // trocar o perfil de alguém aqui já é o Professor decidindo dar acesso
+    // com aquele perfil, então libera na mesma tacada (ver histórico dessa
+    // decisão no Controle de Acesso, seção 9).
     body: JSON.stringify({ role: backendRole, ativo: true })
   }).then(function() {
-    renderControleAcesso();
+    renderMinhaEquipe();
     mostrarToast('Perfil atualizado.');
   }).catch(function(err) {
-    alert('Erro ao alterar acesso: ' + err.message);
-    renderControleAcesso(); // desfaz visualmente a troca no <select>
+    alert('Erro ao alterar perfil: ' + err.message);
+    renderMinhaEquipe(); // desfaz visualmente a troca no <select>
   });
 }
 
@@ -802,7 +785,10 @@ function removerAcesso(userId) {
   });
 }
 
-/* onsubmit do formulário "Conceder novo acesso" — POST /users
+/* onsubmit do formulário "Conceder novo acesso" (Diretoria) — POST /users.
+   Perfil é sempre PROFESSOR aqui: a Diretoria não cadastra Aluno/Técnico/
+   Estagiário diretamente, quem faz isso é o próprio Professor na aba
+   "Minha Equipe" (ver concederAcessoEquipe, seção 13).
    BACKEND: uepId só vai ser persistido de verdade quando o backend aceitar
    esse campo em POST /users (mesma dependência do alterarSetorUsuario acima). */
 function concederAcesso() {
@@ -810,10 +796,8 @@ function concederAcesso() {
 
   var nome = document.getElementById('naNome').value.trim();
   var email = document.getElementById('naEmail').value.trim().toLowerCase();
-  var roleFrontend = document.getElementById('naRole').value;
   var uepId = document.getElementById('naSetor').value;
   var senha = document.getElementById('naSenha').value;
-  var backendRole = ROLE_MAP[roleFrontend] || 'ALUNO';
 
   apiFetch('/users', {
     method: 'POST',
@@ -821,15 +805,133 @@ function concederAcesso() {
       nome: nome,
       email: email,
       senha: senha,
-      role: backendRole,
+      role: 'PROFESSOR',
       uepId: uepId ? Number(uepId) : null
     })
   }).then(function() {
     document.getElementById('novoAcessoForm').reset();
     renderControleAcesso();
-    mostrarToast('Acesso concedido a ' + nome + '.');
+    mostrarToast('Acesso de Professor concedido a ' + nome + '.');
   }).catch(function(err) {
     showFormError('acessoError', err.message);
+  });
+}
+
+
+/* =====================================================================
+   13. MINHA EQUIPE (aba exclusiva do Professor)
+   O Professor cadastra e gerencia só os próprios Aluno/Técnico/Estagiário.
+   UEP e vínculo com o Professor são sempre implícitos (o próprio Professor
+   logado) — não existe campo nenhum aqui pra escolher isso, de propósito.
+
+   BACKEND — isso ainda não funciona de ponta a ponta, falta:
+   1) Migration: coluna nova em users —
+      ALTER TABLE users ADD COLUMN professor_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+   2) Autorização: hoje GET/POST/PATCH/DELETE /users são só ADMIN
+      (USER_MANAGEMENT_ROLES em config/roles.js). Precisa liberar pra
+      PROFESSOR também, mas com escopo — um Professor só pode ver/criar/
+      editar/remover usuários onde professor_id = ele mesmo, e só com role
+      ALUNO/TECNICO/ESTAGIARIO. Isso é regra de autorização de verdade,
+      não só esconder botão no front: mesmo escondendo a tela pra quem não
+      é Professor, a API tem que recusar sozinha se alguém tentar burlar
+      chamando a rota direto.
+   3) IMPORTANTE: professor_id e uep_id de quem for criado aqui NUNCA devem
+      vir do corpo da requisição — o backend tem que derivar os dois do
+      próprio token JWT de quem está logado (o Professor autenticado), pra
+      um Professor não conseguir, por exemplo, criar um Aluno apontando pra
+      outro professor só editando o payload da requisição.
+   4) GET /users precisa aceitar ?professorId= (ou, melhor ainda: quando
+      quem chama é PROFESSOR, o backend já filtra pelos próprios liderados
+      sozinho, ignorando esse parâmetro se vier — mais seguro que confiar
+      no que o cliente manda).
+   Até isso existir, os fetch() abaixo vão voltar 403 (Forbidden) — é o
+   esperado, é só a parte do front pronta esperando a API.
+   ===================================================================== */
+
+/* Perfis que um Professor pode atribuir a alguém da própria equipe —
+   só esses três, nunca Professor nem Diretoria. */
+var PAPEIS_EQUIPE = ['aluno', 'tecnico', 'estagiario'];
+
+function buildEquipeRoleOptions(selecionado) {
+  var html = '';
+  PAPEIS_EQUIPE.forEach(function(key) {
+    html += '<option value="' + key + '"' + (key === selecionado ? ' selected' : '') + '>' + ROLES[key].label + '</option>';
+  });
+  return html;
+}
+
+/* Repinta a tabela "Minha Equipe" — GET /users?professorId=<eu mesmo> */
+function renderMinhaEquipe() {
+  var tbody = document.getElementById('tabelaEquipe');
+  tbody.innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
+
+  apiFetch('/users?professorId=' + currentUser.id).then(function(usuarios) {
+    EQUIPE = usuarios || [];
+
+    var linhas = '';
+    EQUIPE.forEach(function (u) {
+      var roleFrontend = ROLE_MAP_REVERSE[u.role] || 'aluno';
+      linhas +=
+        '<tr>' +
+          '<td>' + u.nome + '</td>' +
+          '<td>' + u.email + '</td>' +
+          '<td>' + roleBadge(roleFrontend) + '</td>' +
+          '<td><select class="fake-select" style="min-width:150px;" onchange="alterarPerfilEquipe(' + u.id + ', this.value)">' +
+                buildEquipeRoleOptions(roleFrontend) +
+              '</select></td>' +
+          '<td>' + statusAcessoBadge(u) + '</td>' +
+          '<td><span class="link-ver" style="color:var(--if-red);" onclick="removerMembroEquipe(' + u.id + ')">remover</span></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = linhas || '<tr><td colspan="6">Nenhum integrante na equipe ainda.</td></tr>';
+  }).catch(function(err) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#c00">Erro ao carregar equipe: ' + err.message + '</td></tr>';
+  });
+}
+
+/* Chamado ao clicar em "remover" numa linha da equipe — mesma lógica de
+   confirmação do removerAcesso (Controle de Acesso) e do
+   confirmarRemoverAnimal (Gestão do Rebanho): pede confirmação antes,
+   porque é irreversível. */
+function removerMembroEquipe(userId) {
+  var usuario = EQUIPE.find(function(u) { return u.id === userId; });
+  var quem = usuario ? (usuario.nome + ' (' + usuario.email + ')') : 'este integrante';
+
+  var confirmado = window.confirm(
+    'Tem certeza que deseja remover ' + quem + ' da sua equipe?\n\nEssa ação não pode ser desfeita.'
+  );
+  if (!confirmado) return;
+
+  apiFetch('/users/' + userId, { method: 'DELETE' }).then(function() {
+    renderMinhaEquipe();
+    mostrarToast('Integrante removido da equipe.');
+  }).catch(function(err) {
+    alert('Erro ao remover integrante: ' + err.message);
+  });
+}
+
+/* onsubmit do formulário "Adicionar integrante" — POST /users.
+   Não manda uepId nem professorId no corpo de propósito: como o comentário
+   BACKEND lá em cima explica, esses dois têm que ser decididos pelo próprio
+   backend a partir de quem está logado, nunca vir do que o cliente manda. */
+function concederAcessoEquipe() {
+  hideFormError('equipeError');
+
+  var nome = document.getElementById('eqNome').value.trim();
+  var email = document.getElementById('eqEmail').value.trim().toLowerCase();
+  var roleFrontend = document.getElementById('eqRole').value;
+  var senha = document.getElementById('eqSenha').value;
+  var backendRole = ROLE_MAP[roleFrontend] || 'ALUNO';
+
+  apiFetch('/users', {
+    method: 'POST',
+    body: JSON.stringify({ nome: nome, email: email, senha: senha, role: backendRole })
+  }).then(function() {
+    document.getElementById('novaEquipeForm').reset();
+    renderMinhaEquipe();
+    mostrarToast(nome + ' adicionado(a) à equipe.');
+  }).catch(function(err) {
+    showFormError('equipeError', err.message);
   });
 }
 
@@ -845,11 +947,15 @@ function concederAcesso() {
    - Notas Fiscais nunca é escondida (não tem nenhuma dessas duas classes) */
 function toggleTabsByRole() {
   var isDiretoria = currentRole === 'diretoria';
+  var isProfessor = currentRole === 'professor';
   document.querySelectorAll('.op-only').forEach(function (el) {
     el.classList.toggle('hidden', isDiretoria);
   });
   document.querySelectorAll('.admin-only').forEach(function (el) {
     el.classList.toggle('hidden', !isDiretoria);
+  });
+  document.querySelectorAll('.professor-only').forEach(function (el) {
+    el.classList.toggle('hidden', !isProfessor);
   });
 }
 
@@ -870,6 +976,7 @@ function enterApp() {
   toggleTabsByRole();
   renderSetor();
   if (currentRole === 'diretoria') renderControleAcesso();
+  if (currentRole === 'professor') renderMinhaEquipe();
 
   document.getElementById('authFlow').classList.add('hidden');
   reveal(document.getElementById('app'));
@@ -909,7 +1016,11 @@ function logout() {
 // buildSetorGrid() NAO e chamado aqui: ele bate em GET /ueps, que exige token.
 // E chamado dentro de handleLogin/handleCadastro, apos a autenticacao.
 buildCadastroRoleOptions();
-document.getElementById('naRole').innerHTML = buildRoleOptions(null, true); // formulário de concessão inclui Diretoria
+// eqRole (formulário "Adicionar integrante" da aba Minha Equipe) é populado
+// aqui porque é estático — sempre as mesmas 3 opções, não depende de fetch
+// nenhum. naSetor, por outro lado, só é montado dentro de renderControleAcesso(),
+// porque a lista de UEPs vem de GET /ueps (precisa de token).
+document.getElementById('eqRole').innerHTML = buildEquipeRoleOptions(null);
 
 // Rede corporativa/escolar bloqueando accounts.google.com, adblock, etc. —
 // nesses casos o <script> do Google nunca dispara o onload, e o
