@@ -209,7 +209,7 @@ jobs:
       # virar versao; tag fora desse padrao nao gera imagem versionada.
       - name: Definir tags da imagem
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
           tags: |
