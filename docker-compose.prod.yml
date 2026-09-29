@@ -1,0 +1,89 @@
+name: gestao-uep
+
+services:
+  frontend:
+    image: ghcr.io/ifpebj-ti/gestao-uep-animais/frontend:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    environment:
+      API_URL: ${API_URL:?defina API_URL no .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    image: ghcr.io/ifpebj-ti/gestao-uep-animais/backend:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      BACKEND_PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:?defina DB_NAME no .env}
+      DB_USER: ${DB_USER:?defina DB_USER no .env}
+      DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-true}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@ifpe.edu.br}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?defina SEED_ADMIN_PASSWORD no .env}
+      SEED_PROFESSOR_EMAIL: ${SEED_PROFESSOR_EMAIL:-professor@ifpe.edu.br}
+      SEED_PROFESSOR_PASSWORD: ${SEED_PROFESSOR_PASSWORD:?defina SEED_PROFESSOR_PASSWORD no .env}
+      SEED_TECNICO_EMAIL: ${SEED_TECNICO_EMAIL:-tecnico@ifpe.edu.br}
+      SEED_TECNICO_PASSWORD: ${SEED_TECNICO_PASSWORD:?defina SEED_TECNICO_PASSWORD no .env}
+      SEED_ESTAGIARIO_EMAIL: ${SEED_ESTAGIARIO_EMAIL:-estagiario@ifpe.edu.br}
+      SEED_ESTAGIARIO_PASSWORD: ${SEED_ESTAGIARIO_PASSWORD:?defina SEED_ESTAGIARIO_PASSWORD no .env}
+      SEED_ALUNO_EMAIL: ${SEED_ALUNO_EMAIL:-aluno@ifpe.edu.br}
+      SEED_ALUNO_PASSWORD: ${SEED_ALUNO_PASSWORD:?defina SEED_ALUNO_PASSWORD no .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s   # tempo para as migracoes rodarem na primeira subida
+
+  data:
+    image: ghcr.io/ifpebj-ti/gestao-uep-animais/data:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    ports:
+      - "${DATA_SERVICE_PORT:-5000}:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?defina DB_NAME no .env}
+      POSTGRES_USER: ${DB_USER:?defina DB_USER no .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  db_data:
