@@ -1,0 +1,99 @@
+# Compose de PRODUÇÃO: não faz build. Baixa do GHCR as imagens já geradas,
+# testadas e escaneadas (Trivy) pela esteira de CI/CD.
+#
+# Não precisa clonar o repositório: basta este arquivo + um ".env" ao lado
+# (modelo em .env.prod.example).
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Versão: definida por IMAGE_TAG no .env (ex.: 0.2.0, igual à release v0.2.0).
+# Para atualizar ou fazer rollback, troque IMAGE_TAG e rode pull + up -d.
+#
+# O backend roda as migrations sozinho ao iniciar (ver CMD do Dockerfile),
+# e o frontend gera o js/config.js na inicialização a partir de API_URL e
+# GOOGLE_CLIENT_ID (basta recriar o container ao mudar esses valores).
+
+name: gestao-uep
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-gestao_uep}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD no .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    # Sem "ports": o banco fica acessível só pela rede interna do compose.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-gestao_uep}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ghcr.io/ifpebj-ti/gestao-uep-animais/backend:${IMAGE_TAG:-0.2.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-gestao_uep}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD no .env}
+      BACKEND_PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET no .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # ATENÇÃO: hoje o migrate.js cria o admin inicial DENTRO da rotina de
+      # contas de demonstração. Com SEED_DEMO_USERS=false nenhum usuário é
+      # criado e ninguém consegue logar. Mantenha "true" até o backend passar
+      # a criar só o admin; depois de logar, troque as senhas.
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-true}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@ifpe.edu.br}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Defina SEED_ADMIN_PASSWORD no .env}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  frontend:
+    image: ghcr.io/ifpebj-ti/gestao-uep-animais/frontend:${IMAGE_TAG:-0.2.0}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    environment:
+      # URL da API como o NAVEGADOR enxerga (não é o nome interno do compose).
+      API_URL: ${API_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+
+  data:
+    image: ghcr.io/ifpebj-ti/gestao-uep-animais/data:${IMAGE_TAG:-0.2.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${DATA_SERVICE_PORT:-5000}:5000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-gestao_uep}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD no .env}
+
+volumes:
+  db_data:
