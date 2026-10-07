@@ -36,3 +36,5 @@ export const STATUS_REPRODUTIVOS = Object.freeze([
   "EM_CRESCIMENTO",
   "DESCARTE",
 ]);
+
+export const MOVIMENTACAO_TIPOS = Object.freeze(["ENTRADA", "SAIDA"]);
