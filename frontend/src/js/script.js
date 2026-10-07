@@ -51,14 +51,19 @@ function apiFetch(endpoint, options) {
   options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
   return fetch(API_BASE + endpoint, options).then(function(res) {
     if (!res.ok) {
-      return res.json().then(function(body) {
+      // res.json() só pode falhar quando o corpo não é um JSON válido (timeout,
+      // proxy no meio do caminho, etc.) — esse .catch() cobre só esse caso,
+      // devolvendo null. Antes ele vinha encadeado DEPOIS do .then() de baixo,
+      // então também capturava o "throw new Error(msg)" do caminho normal (com
+      // a mensagem de verdade do backend) e substituía tudo pela genérica —
+      // por isso toda mensagem de erro específica (ex.: "Quantidade maior que
+      // o saldo disponível") nunca chegava a aparecer pro usuário.
+      return res.json().catch(function() { return null; }).then(function(body) {
         // o backend manda o erro em { error: "..." } (ver errorHandler.js) —
         // "message" nunca existiu nessa resposta, por isso caía sempre no
         // fallback genérico "Erro 401" em vez de mostrar o motivo de verdade
         var msg = (body && body.error) ? body.error : mensagemGenericaPorStatus(res.status);
         throw new Error(msg);
-      }).catch(function() {
-        throw new Error(mensagemGenericaPorStatus(res.status));
       });
     }
     if (res.status === 204) return null;
@@ -555,9 +560,12 @@ document.addEventListener('click', function () {
 
 /* =====================================================================
    8. RENDERIZAÇÃO DOS DADOS DO SETOR ATUAL
-   Preenche Painel, Gestão do Rebanho e Estoque com dados vindos da API
+   Preenche Painel e Gestão do Rebanho com dados vindos da API
    (GET /ueps/:id/animais e /ueps/:id/animais/censo). Chamada sempre
    que o setor muda ou a página da tabela é trocada.
+   A aba Estoque de Insumos tem sua própria função (renderEstoque, seção
+   8B) porque ela não depende de paginação/filtro de animal — repintá-la
+   a cada mudança de página da tabela de animais seria refetch à toa.
    ===================================================================== */
 function renderSetor() {
   var uepId = currentSetor;
@@ -670,18 +678,309 @@ function renderSetor() {
       : 'Mostrando ' + de + '–' + ate + ' de ' + (pagina.total || total) + ' animais';
     renderPaginacao(pagina.page || 1, pagina.totalPages || 1);
 
-    // Estoque (placeholder — modulo de estoque sera integrado futuramente)
-    document.getElementById('estoqueInsumo').textContent = 'Estoque — ' + uepNome;
-    document.getElementById('estoqueNivel').textContent = '—';
-    document.getElementById('estoqueLabel').textContent = 'Nível atual';
-    document.getElementById('estoqueConsumo').textContent = '—';
-    document.getElementById('tabelaEstoque').innerHTML = '<tr><td colspan="5">Módulo de estoque em breve.</td></tr>';
-
   }).catch(function(err) {
     document.getElementById('tabelaAnimais').innerHTML =
       '<tr><td colspan="6" style="color:#c00">Erro ao carregar dados: ' + err.message + '</td></tr>';
   });
 }
+
+
+/* =====================================================================
+   8B. ESTOQUE DE INSUMOS E RAÇÃO (Sprint 10)
+   Contrato esperado do backend (ver também o comentário acima da tela
+   #estoque no index.html):
+
+     GET    /ueps/:uepId/insumos
+       -> [{ id, uep_id, nome, unidade, saldo_atual, estoque_minimo,
+              consumo_medio_diario, created_at, updated_at }]
+
+     POST   /ueps/:uepId/insumos
+       body: { nome, unidade, saldoInicial, estoqueMinimo, consumoMedioDiario }
+       -> 201 com o insumo criado (mesmo shape do GET). 400 se já existir
+          insumo com esse nome nessa UEP. Se saldoInicial > 0, o backend
+          também deve criar a movimentação ENTRADA correspondente (ver
+          POST .../movimentacoes), pra não ter saldo sem histórico.
+
+     GET    /ueps/:uepId/estoque/movimentacoes?tipo=ENTRADA|SAIDA&insumoId=#
+       -> [{ id, insumo_id, insumo_nome, tipo, quantidade, unidade, data,
+              responsavel, observacao, created_at }], mais recente primeiro.
+          "responsavel" é o nome de quem registrou (join com users pelo
+          created_by), nunca um texto livre vindo do cliente.
+
+     POST   /ueps/:uepId/estoque/movimentacoes
+       body: { insumoId, tipo (ENTRADA|SAIDA), quantidade (>0), data,
+               observacao }
+       -> 201 com a movimentação criada. O backend (numa transação) soma
+          ou subtrai "quantidade" de insumos.saldo_atual, e rejeita com 400
+          uma SAIDA maior que o saldo disponível. "responsavel" vem de
+          req.user (igual created_by em animais), nunca do body.
+
+   Todas as rotas exigem autenticação (authenticate) e a leitura é liberada
+   a qualquer perfil com acesso à UEP; a escrita (POST) segue a mesma regra
+   de permissão já usada em animais (allowWriteOrReadOnly — Aluno só lê).
+   ===================================================================== */
+
+/* Cache da última lista de insumos carregada pro setor atual — usada pra
+   popular o <select> do modal de movimentação sem precisar buscar nada de
+   novo ao abrir o modal (e pra achar o insumo clicado em "movimentar"). */
+var INSUMOS_CACHE = [];
+
+/* Um insumo está em alerta quando o saldo já está no mínimo cadastrado ou abaixo */
+function insumoEmAlerta(insumo) {
+  return Number(insumo.saldo_atual) <= Number(insumo.estoque_minimo);
+}
+
+/* Previsão de duração do saldo atual, em dias inteiros, dado o consumo médio diário */
+function previsaoDias(insumo) {
+  var consumo = Number(insumo.consumo_medio_diario);
+  if (!consumo || consumo <= 0) return '—';
+  return Math.floor(Number(insumo.saldo_atual) / consumo) + ' dias';
+}
+
+/* dd/mm/aaaa a partir de uma data em formato ISO (yyyy-mm-dd ou timestamp) */
+function formatarDataBR(data) {
+  if (!data) return '—';
+  var soData = String(data).slice(0, 10); // corta o resto do timestamp, se vier
+  var partes = soData.split('-');
+  if (partes.length !== 3) return soData;
+  return partes[2] + '/' + partes[1] + '/' + partes[0];
+}
+
+/* yyyy-mm-dd de hoje, usado como valor padrão do campo de data do modal */
+function hojeISO() {
+  var d = new Date();
+  var mes = String(d.getMonth() + 1).padStart(2, '0');
+  var dia = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mes + '-' + dia;
+}
+
+/* Repinta KPIs, banner de alerta e a tabela "Saldo por insumo" da UEP
+   atual — chamada por enterApp() (uma vez por troca de setor) e sempre
+   que uma movimentação ou um novo insumo é confirmado. Também dispara
+   renderMovimentacoes() ao final, pra manter as duas tabelas em sincronia. */
+function renderEstoque() {
+  var uepId = currentSetor;
+  var tbody = document.getElementById('tabelaInsumos');
+  tbody.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
+
+  apiFetch('/ueps/' + uepId + '/insumos').then(function(insumos) {
+    INSUMOS_CACHE = insumos || [];
+    var emAlerta = INSUMOS_CACHE.filter(insumoEmAlerta);
+
+    document.getElementById('kpiInsumosTotal').textContent = INSUMOS_CACHE.length;
+    document.getElementById('kpiInsumosAlerta').textContent = emAlerta.length;
+    document.getElementById('kpiStatusGeral').textContent = emAlerta.length > 0 ? 'Alerta' : 'Normal';
+    document.getElementById('kpiStatusIcon').classList.toggle('warn', emAlerta.length > 0);
+
+    var banner = document.getElementById('estoqueAlertBanner');
+    if (emAlerta.length > 0) {
+      var nomes = emAlerta.map(function(i) { return i.nome; }).join(', ');
+      document.getElementById('estoqueAlertTexto').textContent =
+        ' ' + nomes + (emAlerta.length > 1 ? ' estão' : ' está') + ' no nível mínimo ou abaixo. Recomenda-se registrar entrada.';
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+
+    var linhas = INSUMOS_CACHE.map(function(insumo) {
+      var alerta = insumoEmAlerta(insumo);
+      return '<tr>' +
+          '<td class="brinco">' + insumo.nome + '</td>' +
+          '<td>' + insumo.saldo_atual + ' ' + insumo.unidade + '</td>' +
+          '<td>' + insumo.estoque_minimo + ' ' + insumo.unidade + '</td>' +
+          '<td>' + insumo.consumo_medio_diario + ' ' + insumo.unidade + '/dia</td>' +
+          '<td>' + previsaoDias(insumo) + '</td>' +
+          '<td><span class="tag ' + (alerta ? 'critico' : 'ok') + '">' + (alerta ? 'Crítico' : 'Normal') + '</span></td>' +
+          '<td><span class="link-ver" onclick="abrirModalMovimentacao(' + insumo.id + ')">movimentar</span></td>' +
+        '</tr>';
+    }).join('');
+    tbody.innerHTML = linhas || '<tr><td colspan="7">Nenhum insumo cadastrado nesta UEP ainda.</td></tr>';
+
+    var filtroAtual = document.getElementById('filtroInsumoMov').value;
+    var opcoesInsumo = '<option value="">Insumo</option>';
+    INSUMOS_CACHE.forEach(function(insumo) {
+      opcoesInsumo += '<option value="' + insumo.id + '"' + (String(insumo.id) === filtroAtual ? ' selected' : '') + '>' + insumo.nome + '</option>';
+    });
+    document.getElementById('filtroInsumoMov').innerHTML = opcoesInsumo;
+
+    renderMovimentacoes();
+  }).catch(function(err) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#c00">Erro ao carregar insumos: ' + err.message + '</td></tr>';
+  });
+}
+
+/* Repinta só a tabela de histórico, com os filtros de tipo/insumo
+   aplicados via query string — GET /ueps/:uepId/estoque/movimentacoes */
+function renderMovimentacoes() {
+  var uepId = currentSetor;
+  var tbody = document.getElementById('tabelaEstoque');
+  var filtroTipo = document.getElementById('filtroTipoMov').value;
+  var filtroInsumo = document.getElementById('filtroInsumoMov').value;
+
+  var qs = '';
+  if (filtroTipo)   qs += (qs ? '&' : '?') + 'tipo=' + filtroTipo;
+  if (filtroInsumo) qs += (qs ? '&' : '?') + 'insumoId=' + filtroInsumo;
+
+  tbody.innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
+
+  apiFetch('/ueps/' + uepId + '/estoque/movimentacoes' + qs).then(function(movimentacoes) {
+    document.getElementById('kpiMovimentacoes').textContent = (movimentacoes || []).length;
+
+    var linhas = (movimentacoes || []).map(function(m) {
+      var tipoClasse = m.tipo === 'ENTRADA' ? 'entrada' : 'saida';
+      var tipoLabel  = m.tipo === 'ENTRADA' ? 'Entrada' : 'Saída';
+      return '<tr>' +
+          '<td>' + formatarDataBR(m.data) + '</td>' +
+          '<td><span class="tag ' + tipoClasse + '">' + tipoLabel + '</span></td>' +
+          '<td>' + (m.insumo_nome || '—') + '</td>' +
+          '<td>' + m.quantidade + ' ' + (m.unidade || '') + '</td>' +
+          '<td>' + (m.responsavel || '—') + '</td>' +
+          '<td>' + (m.observacao || '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    tbody.innerHTML = linhas || '<tr><td colspan="6">Nenhuma movimentação encontrada.</td></tr>';
+  }).catch(function(err) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#c00">Erro ao carregar histórico: ' + err.message + '</td></tr>';
+  });
+}
+
+/* ---------- Modal: Registrar Entrada/Saída ---------- */
+
+/* Guarda o que estava com foco antes de abrir um dos dois modais desta
+   seção, pra devolver o foco pra lá quando fechar (mesmo padrão do
+   elementoAntesDoModal usado pelo modalAnimal, seção 12). */
+var elementoAntesDoModalEstoque = null;
+
+/* Abre o modal de movimentação. Se insumoId for informado (clique em
+   "movimentar" na tabela de saldo), esse insumo já vem pré-selecionado. */
+function abrirModalMovimentacao(insumoId) {
+  if (!INSUMOS_CACHE.length) {
+    alert('Cadastre um insumo antes de registrar uma movimentação.');
+    return;
+  }
+
+  elementoAntesDoModalEstoque = document.activeElement;
+  hideFormError('movError');
+  document.getElementById('formMovimentacao').reset();
+
+  var opcoes = INSUMOS_CACHE.map(function(insumo) {
+    return '<option value="' + insumo.id + '">' + insumo.nome + '</option>';
+  }).join('');
+  document.getElementById('movInsumo').innerHTML = opcoes;
+  if (insumoId != null) document.getElementById('movInsumo').value = insumoId;
+
+  document.getElementById('movData').value = hojeISO();
+  atualizarUnidadeMovimentacao();
+
+  document.getElementById('modalMovimentacao').style.display = 'flex';
+  document.getElementById('movTipo').focus();
+}
+
+/* Atualiza o rótulo "QUANTIDADE (kg)" / "(L)" / etc. conforme o insumo
+   selecionado — chamado pelo onchange do próprio <select> de insumo. */
+function atualizarUnidadeMovimentacao() {
+  var insumo = INSUMOS_CACHE.find(function(i) { return String(i.id) === document.getElementById('movInsumo').value; });
+  document.getElementById('movUnidadeLabel').textContent = insumo ? '(' + insumo.unidade + ')' : '';
+}
+
+function fecharModalMovimentacao() {
+  document.getElementById('modalMovimentacao').style.display = 'none';
+  if (elementoAntesDoModalEstoque && typeof elementoAntesDoModalEstoque.focus === 'function') {
+    elementoAntesDoModalEstoque.focus();
+  }
+  elementoAntesDoModalEstoque = null;
+}
+
+/* onsubmit do #formMovimentacao — POST /ueps/:uepId/estoque/movimentacoes.
+   "responsavel" não é enviado: quem registrou vem do token no backend,
+   igual createdBy em animais (ver comentário da seção 8B). */
+function confirmarMovimentacao() {
+  var btn = document.getElementById('btnSalvarMovimentacao');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  var payload = {
+    insumoId: Number(document.getElementById('movInsumo').value),
+    tipo: document.getElementById('movTipo').value,
+    quantidade: parseFloat(document.getElementById('movQuantidade').value),
+    data: document.getElementById('movData').value,
+    observacao: document.getElementById('movObs').value.trim() || null
+  };
+
+  apiFetch('/ueps/' + currentSetor + '/estoque/movimentacoes', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }).then(function() {
+    fecharModalMovimentacao();
+    renderEstoque();
+    mostrarToast('Movimentação registrada com sucesso.');
+  }).catch(function(err) {
+    showFormError('movError', err.message);
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = 'Confirmar movimentação';
+  });
+}
+
+/* ---------- Modal: Cadastrar novo insumo ---------- */
+
+function abrirModalInsumo() {
+  elementoAntesDoModalEstoque = document.activeElement;
+  hideFormError('insumoError');
+  document.getElementById('formInsumo').reset();
+  document.getElementById('modalInsumo').style.display = 'flex';
+  document.getElementById('insNome').focus();
+}
+
+function fecharModalInsumo() {
+  document.getElementById('modalInsumo').style.display = 'none';
+  if (elementoAntesDoModalEstoque && typeof elementoAntesDoModalEstoque.focus === 'function') {
+    elementoAntesDoModalEstoque.focus();
+  }
+  elementoAntesDoModalEstoque = null;
+}
+
+/* onsubmit do #formInsumo — POST /ueps/:uepId/insumos */
+function confirmarInsumo() {
+  var btn = document.getElementById('btnSalvarInsumo');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  var payload = {
+    nome: document.getElementById('insNome').value.trim(),
+    unidade: document.getElementById('insUnidade').value,
+    saldoInicial: parseFloat(document.getElementById('insSaldoInicial').value) || 0,
+    estoqueMinimo: parseFloat(document.getElementById('insMinimo').value) || 0,
+    consumoMedioDiario: parseFloat(document.getElementById('insConsumo').value) || 0
+  };
+
+  apiFetch('/ueps/' + currentSetor + '/insumos', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }).then(function() {
+    fecharModalInsumo();
+    renderEstoque();
+    mostrarToast('Insumo cadastrado com sucesso.');
+  }).catch(function(err) {
+    showFormError('insumoError', err.message);
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = 'Cadastrar insumo';
+  });
+}
+
+/* Fecha ao clicar fora (no overlay escuro) e com Esc — mesmo padrão do
+   modalAnimal (seção 12), só que cobrindo os dois modais desta seção. */
+document.addEventListener('click', function(e) {
+  if (e.target === document.getElementById('modalMovimentacao')) fecharModalMovimentacao();
+  if (e.target === document.getElementById('modalInsumo')) fecharModalInsumo();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('modalMovimentacao').style.display === 'flex') fecharModalMovimentacao();
+  if (document.getElementById('modalInsumo').style.display === 'flex') fecharModalInsumo();
+});
 
 
 /* =====================================================================
@@ -1127,6 +1426,7 @@ function enterApp() {
 
   toggleTabsByRole();
   renderSetor();
+  if (currentRole !== 'diretoria') renderEstoque();
   if (currentRole === 'diretoria') renderControleAcesso();
   if (currentRole === 'professor') renderMinhaEquipe();
 
