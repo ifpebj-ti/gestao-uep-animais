@@ -114,6 +114,10 @@ tbody td{padding:13px 16px;font-size:14px;border-top:1px solid var(--gray-border
 .tag.status-lactante{background:#e3edfd;color:#1a56ad;}
 .tag.status-crescimento{background:#dcecea;color:#1f7a6c;}
 .tag.status-descarte{background:var(--danger-bg);color:var(--if-red);}
+
+/* Estoque de insumos (Sprint 10) — status "Normal" / "Crítico" na tabela de saldos */
+.tag.ok{background:#dcf5e3;color:#1e7e34;}
+.tag.critico{background:var(--danger-bg);color:var(--if-red);}
 .link-ver{color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;}
 
 .pagination{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:13px;color:var(--gray-text);}

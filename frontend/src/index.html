@@ -167,7 +167,7 @@
       <!-- .op-only = visível para todo mundo, MENOS a Diretoria -->
       <div class="tab op-only active" id="tab-painel" onclick="go('painel', event)"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg> Painel</div>
       <div class="tab op-only" id="tab-rebanho" onclick="go('rebanho', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg> Gestão do Rebanho</div>
-      <div class="tab op-only" id="tab-estoque" onclick="go('estoque', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg> Estoque de Ração</div>
+      <div class="tab op-only" id="tab-estoque" onclick="go('estoque', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg> Estoque de Insumos</div>
       <!-- Notas Fiscais: visível para TODOS os perfis (sem classe de restrição) -->
       <div class="tab" id="tab-notas" onclick="go('notas', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
       <!-- .admin-only = visível SOMENTE para a Diretoria -->
@@ -258,24 +258,52 @@
     </div>
   </div>
 
-  <!-- ESTOQUE -->
-  <!-- BACKEND: GET /api/setores/{setor}/estoque | POST /api/setores/{setor}/estoque/movimentacao -->
+  <!-- ESTOQUE DE INSUMOS E RAÇÃO (Sprint 10) -->
+  <!-- BACKEND: contrato completo em frontend/js/script.js, seção 8B (renderEstoque
+       e funções abaixo dela) — resumo:
+       GET    /ueps/:uepId/insumos
+       POST   /ueps/:uepId/insumos                      {nome, unidade, saldoInicial, estoqueMinimo, consumoMedioDiario}
+       GET    /ueps/:uepId/estoque/movimentacoes?tipo=&insumoId=
+       POST   /ueps/:uepId/estoque/movimentacoes        {insumoId, tipo, quantidade, data, observacao} -->
   <div class="screen" id="estoque">
-    <div class="page-head"><div><h1>Estoque de Ração</h1><p>Controle de entradas, saídas e nível de estoque do setor</p></div></div>
-    <div class="alert-banner warn">
+    <div class="page-head"><div><h1>Estoque de Insumos e Ração</h1><p>Entradas, saídas e saldo atual de cada insumo da UEP</p></div></div>
+
+    <div class="alert-banner warn hidden" id="estoqueAlertBanner">
       <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-      <div><strong id="estoqueInsumo">Nível crítico</strong>Estoque atual cobre poucos dias de consumo. Recomenda-se registrar entrada.</div>
+      <div><strong>Nível crítico</strong><span id="estoqueAlertTexto">—</span></div>
     </div>
+
     <div class="kpi-row">
-      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg></div><div><div class="kpi-num" id="estoqueNivel">—</div><div class="kpi-label" id="estoqueLabel">Nível atual</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg></div><div><div class="kpi-num" id="estoqueConsumo">—</div><div class="kpi-label">Consumo médio diário</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon warn"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-num">4 dias</div><div class="kpi-label">Previsão de duração</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon warn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/></svg></div><div><div class="kpi-num">Alerta</div><div class="kpi-label">Status</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg></div><div><div class="kpi-num" id="kpiInsumosTotal">—</div><div class="kpi-label">Insumos cadastrados</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon warn" id="kpiInsumosAlertaIcon"><svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-num" id="kpiInsumosAlerta">—</div><div class="kpi-label">Em nível crítico</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg></div><div><div class="kpi-num" id="kpiMovimentacoes">—</div><div class="kpi-label">Movimentações no histórico</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" id="kpiStatusIcon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-num" id="kpiStatusGeral">—</div><div class="kpi-label">Status do estoque</div></div></div>
     </div>
-    <div class="toolbar-row"><div class="section-label" style="margin:0;">Movimentações</div><button class="btn" onclick="alert('Ação: abrir formulário de Registrar Entrada/Saída')">Registrar Entrada / Saída</button></div>
+
+    <div class="toolbar-row">
+      <div class="section-label" style="margin:0;">Saldo por insumo</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn outline" type="button" onclick="abrirModalInsumo()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Cadastrar insumo</button>
+        <button class="btn" type="button" onclick="abrirModalMovimentacao()"><svg class="icon" viewBox="0 0 24 24" stroke="#fff"><path d="M12 5v14M5 12h14"/></svg> Registrar Entrada / Saída</button>
+      </div>
+    </div>
+    <table style="margin-bottom:30px;">
+      <thead><tr><th>Insumo</th><th>Saldo atual</th><th>Estoque mínimo</th><th>Consumo médio/dia</th><th>Previsão</th><th>Status</th><th></th></tr></thead>
+      <tbody id="tabelaInsumos"><tr><td colspan="7">Carregando…</td></tr></tbody>
+    </table>
+
+    <div class="toolbar-row"><div class="section-label" style="margin:0;">Histórico de movimentações</div></div>
+    <form class="toolbar" onsubmit="return false;">
+      <select class="fake-select" id="filtroTipoMov" onchange="renderMovimentacoes()">
+        <option value="">Tipo</option>
+        <option value="ENTRADA">Entrada</option>
+        <option value="SAIDA">Saída</option>
+      </select>
+      <select class="fake-select" id="filtroInsumoMov" onchange="renderMovimentacoes()"><option value="">Insumo</option></select>
+    </form>
     <table>
-      <thead><tr><th>Data</th><th>Tipo</th><th>Insumo</th><th>Quantidade</th><th>Responsável</th></tr></thead>
-      <tbody id="tabelaEstoque"></tbody>
+      <thead><tr><th>Data</th><th>Tipo</th><th>Insumo</th><th>Quantidade</th><th>Responsável</th><th>Observação</th></tr></thead>
+      <tbody id="tabelaEstoque"><tr><td colspan="6">Carregando…</td></tr></tbody>
     </table>
   </div>
 
@@ -431,6 +459,91 @@
           <button type="submit" id="btnSalvarAnimal"
             style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
         </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Registrar Entrada/Saída de insumo (Sprint 10) -->
+<!-- BACKEND: POST /ueps/:uepId/estoque/movimentacoes -->
+<div id="modalMovimentacao" role="dialog" aria-modal="true" aria-labelledby="modalMovimentacaoTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+  <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(460px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <h2 id="modalMovimentacaoTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Registrar Entrada / Saída</h2>
+    <div class="auth-error hidden" id="movError" style="max-width:none;"></div>
+    <form id="formMovimentacao" onsubmit="event.preventDefault(); confirmarMovimentacao();">
+      <div style="display:grid;gap:.9rem;">
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">TIPO DE MOVIMENTAÇÃO
+          <select id="movTipo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            <option value="ENTRADA">Entrada (compra, doação, reposição)</option>
+            <option value="SAIDA">Saída (consumo, perda, transferência)</option>
+          </select>
+        </label>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">INSUMO
+          <select id="movInsumo" required onchange="atualizarUnidadeMovimentacao()" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;"></select>
+        </label>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">QUANTIDADE <span id="movUnidadeLabel"></span>
+          <input id="movQuantidade" type="number" min="0.01" step="0.01" placeholder="0" required
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        </label>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">DATA
+          <input id="movData" type="date" required
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        </label>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">OBSERVAÇÃO (OPCIONAL)
+          <input id="movObs" type="text" placeholder="Ex.: NF-e 000482, lote 12..."
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        </label>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
+        <button type="button" onclick="fecharModalMovimentacao()"
+          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+        <button type="submit" id="btnSalvarMovimentacao"
+          style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Confirmar movimentação</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Cadastrar novo insumo (Sprint 10) -->
+<!-- BACKEND: POST /ueps/:uepId/insumos -->
+<div id="modalInsumo" role="dialog" aria-modal="true" aria-labelledby="modalInsumoTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+  <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(460px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <h2 id="modalInsumoTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Cadastrar insumo</h2>
+    <div class="auth-error hidden" id="insumoError" style="max-width:none;"></div>
+    <form id="formInsumo" onsubmit="event.preventDefault(); confirmarInsumo();">
+      <div style="display:grid;gap:.9rem;">
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">NOME DO INSUMO
+          <input id="insNome" type="text" placeholder="Ex.: Ração bovina adulto" required
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;">
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">UNIDADE
+            <select id="insUnidade" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+              <option value="kg">kg</option>
+              <option value="sc">saca</option>
+              <option value="L">litro</option>
+              <option value="un">unidade</option>
+            </select>
+          </label>
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">SALDO INICIAL
+            <input id="insSaldoInicial" type="number" min="0" step="0.01" placeholder="0" required
+              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          </label>
+        </div>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">ESTOQUE MÍNIMO (dispara alerta)
+          <input id="insMinimo" type="number" min="0" step="0.01" placeholder="0" required
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        </label>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">CONSUMO MÉDIO DIÁRIO
+          <input id="insConsumo" type="number" min="0" step="0.01" placeholder="0" required
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        </label>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
+        <button type="button" onclick="fecharModalInsumo()"
+          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+        <button type="submit" id="btnSalvarInsumo"
+          style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Cadastrar insumo</button>
       </div>
     </form>
   </div>
