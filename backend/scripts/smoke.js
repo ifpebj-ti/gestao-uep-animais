@@ -1,5 +1,5 @@
 /**
- * Smoke test dos entregaveis de backend das Sprints 3, 4 e 5.
+ * Smoke test dos entregaveis de backend das Sprints 3, 4, 5 e 10.
  *
  *   node backend/scripts/smoke.js
  *
@@ -63,7 +63,7 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
 }
 
 (async () => {
-  console.log(`\nSmoke test — Sprints 3, 4, 5 + hierarquia de acesso`);
+  console.log(`\nSmoke test — Sprints 3, 4, 5, 10 + hierarquia de acesso`);
   console.log(`API: ${BASE}\n`);
 
   // Sanidade: a API responde?
@@ -550,6 +550,151 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
   });
 
   // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 10 — Estoque de insumos (entradas, saidas e saldos por UEP)");
+  // ─────────────────────────────────────────────────────────────
+  let insumoId = null;
+  const base = `/ueps/${uepId}`;
+
+  await checa(10, "POST /ueps/:id/insumos cria insumo com saldo inicial", async () => {
+    const { dados } = await api(`${base}/insumos`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { nome: "Racao Smoke", unidade: "kg", saldoInicial: 100, estoqueMinimo: 20, consumoMedioDiario: 10 },
+      esperado: 201,
+    });
+    assert(dados.id, "resposta sem id");
+    assert(dados.uep_id === uepId, `uep_id esperado ${uepId}, veio ${dados.uep_id}`);
+    assert(dados.saldo_atual === 100, `saldo_atual esperado 100, veio ${dados.saldo_atual}`);
+    assert(dados.estoque_minimo === 20 && dados.consumo_medio_diario === 10, "estoque_minimo/consumo_medio_diario errados");
+    insumoId = dados.id;
+  });
+
+  await checa(10, "POST /insumos com nome repetido na mesma UEP devolve 400", async () => {
+    await api(`${base}/insumos`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { nome: "Racao Smoke", unidade: "kg" },
+      esperado: 400,
+    });
+  });
+
+  await checa(10, "POST /insumos valida campos (nome vazio, saldo negativo, saldo texto)", async () => {
+    await api(`${base}/insumos`, { metodo: "POST", token: tokenAdmin, body: { nome: "  ", unidade: "kg" }, esperado: 400 });
+    await api(`${base}/insumos`, { metodo: "POST", token: tokenAdmin, body: { nome: "X", unidade: "kg", saldoInicial: -1 }, esperado: 400 });
+    await api(`${base}/insumos`, { metodo: "POST", token: tokenAdmin, body: { nome: "X", unidade: "kg", saldoInicial: "abc" }, esperado: 400 });
+  });
+
+  await checa(10, "GET /insumos lista o insumo criado", async () => {
+    const { dados } = await api(`${base}/insumos`, { token: tokenAdmin, esperado: 200 });
+    const item = dados.find((i) => i.id === insumoId);
+    assert(item, "insumo criado nao apareceu na listagem");
+    assert(item.nome === "Racao Smoke" && item.unidade === "kg", "nome/unidade errados na listagem");
+  });
+
+  await checa(10, "Saldo inicial gera a ENTRADA 'Cadastro inicial do insumo' com responsavel", async () => {
+    const { dados } = await api(`${base}/estoque/movimentacoes?insumoId=${insumoId}`, { token: tokenAdmin, esperado: 200 });
+    assert(dados.length === 1, `esperado 1 movimentacao, veio ${dados.length}`);
+    const m = dados[0];
+    assert(m.tipo === "ENTRADA" && m.quantidade === 100, `ENTRADA de 100 esperada, veio ${m.tipo} ${m.quantidade}`);
+    assert(m.observacao === "Cadastro inicial do insumo", `observacao errada: ${m.observacao}`);
+    assert(m.insumo_nome === "Racao Smoke" && m.unidade === "kg", "insumo_nome/unidade errados");
+    assert(m.responsavel, "responsavel vazio (deveria vir do JOIN com users)");
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(m.data), `data fora do formato AAAA-MM-DD: ${m.data}`);
+  });
+
+  await checa(10, "POST /estoque/movimentacoes SAIDA baixa o saldo e ignora 'responsavel' do body", async () => {
+    const { dados } = await api(`${base}/estoque/movimentacoes`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { insumoId, tipo: "SAIDA", quantidade: 30, data: "2026-01-15", observacao: "Trato manha", responsavel: "Impostor" },
+      esperado: 201,
+    });
+    assert(dados.tipo === "SAIDA" && dados.quantidade === 30, "movimentacao devolvida errada");
+    assert(dados.data === "2026-01-15", `data esperada 2026-01-15, veio ${dados.data}`);
+    assert(dados.responsavel && dados.responsavel !== "Impostor", `responsavel veio do cliente: ${dados.responsavel}`);
+
+    const lista = await api(`${base}/insumos`, { token: tokenAdmin, esperado: 200 });
+    const saldo = lista.dados.find((i) => i.id === insumoId).saldo_atual;
+    assert(saldo === 70, `saldo esperado 70, veio ${saldo}`);
+  });
+
+  await checa(10, "ENTRADA soma ao saldo", async () => {
+    await api(`${base}/estoque/movimentacoes`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { insumoId, tipo: "ENTRADA", quantidade: 5.5 },
+      esperado: 201,
+    });
+    const lista = await api(`${base}/insumos`, { token: tokenAdmin, esperado: 200 });
+    const saldo = lista.dados.find((i) => i.id === insumoId).saldo_atual;
+    assert(saldo === 75.5, `saldo esperado 75.5, veio ${saldo}`);
+  });
+
+  await checa(10, "SAIDA maior que o saldo devolve 400 com mensagem e nao altera o saldo", async () => {
+    const { dados } = await api(`${base}/estoque/movimentacoes`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { insumoId, tipo: "SAIDA", quantidade: 500 },
+      esperado: 400,
+    });
+    assert(/Quantidade maior que o saldo dispon/.test(dados.error), `mensagem inesperada: ${dados.error}`);
+    assert(/75,5 kg/.test(dados.error), `mensagem deveria citar o saldo (75,5 kg): ${dados.error}`);
+    const lista = await api(`${base}/insumos`, { token: tokenAdmin, esperado: 200 });
+    assert(lista.dados.find((i) => i.id === insumoId).saldo_atual === 75.5, "saldo mudou apos SAIDA rejeitada");
+  });
+
+  await checa(10, "Movimentacao rejeita quantidade 0/negativa, tipo e insumo invalidos", async () => {
+    await api(`${base}/estoque/movimentacoes`, { metodo: "POST", token: tokenAdmin, body: { insumoId, tipo: "ENTRADA", quantidade: 0 }, esperado: 400 });
+    await api(`${base}/estoque/movimentacoes`, { metodo: "POST", token: tokenAdmin, body: { insumoId, tipo: "ENTRADA", quantidade: -3 }, esperado: 400 });
+    await api(`${base}/estoque/movimentacoes`, { metodo: "POST", token: tokenAdmin, body: { insumoId, tipo: "TRANSFERENCIA", quantidade: 1 }, esperado: 400 });
+    await api(`${base}/estoque/movimentacoes`, { metodo: "POST", token: tokenAdmin, body: { insumoId, tipo: "ENTRADA", quantidade: 1, data: "31/02/2026" }, esperado: 400 });
+    await api(`${base}/estoque/movimentacoes`, { metodo: "POST", token: tokenAdmin, body: { insumoId: 99999999, tipo: "ENTRADA", quantidade: 1 }, esperado: 404 });
+  });
+
+  await checa(10, "GET movimentacoes filtra por tipo, vem do mais recente e rejeita tipo invalido", async () => {
+    const saidas = await api(`${base}/estoque/movimentacoes?tipo=SAIDA&insumoId=${insumoId}`, { token: tokenAdmin, esperado: 200 });
+    assert(saidas.dados.length === 1 && saidas.dados.every((m) => m.tipo === "SAIDA"), "filtro tipo=SAIDA errado");
+
+    const todas = await api(`${base}/estoque/movimentacoes?insumoId=${insumoId}`, { token: tokenAdmin, esperado: 200 });
+    assert(todas.dados.length === 3, `esperado 3 movimentacoes, veio ${todas.dados.length}`);
+    const datas = todas.dados.map((m) => m.data);
+    assert(datas.every((d, i) => i === 0 || datas[i - 1] >= d), `ordem nao e mais recente primeiro: ${datas.join(", ")}`);
+
+    await api(`${base}/estoque/movimentacoes?tipo=XYZ`, { token: tokenAdmin, esperado: 400 });
+  });
+
+  await checa(10, "Insumo de uma UEP nao aceita movimentacao por outra UEP (isolamento)", async () => {
+    const outraUep = uepsSemente.find((id) => id !== uepId);
+    assert(outraUep, "nenhuma outra UEP disponivel para o teste");
+    await api(`/ueps/${outraUep}/estoque/movimentacoes`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { insumoId, tipo: "ENTRADA", quantidade: 1 },
+      esperado: 404,
+    });
+    const lista = await api(`/ueps/${outraUep}/insumos`, { token: tokenAdmin, esperado: 200 });
+    assert(!lista.dados.some((i) => i.id === insumoId), "insumo vazou para a listagem de outra UEP");
+  });
+
+  await checa(10, "UEP inexistente devolve 404 e sem token devolve 401", async () => {
+    await api(`/ueps/99999999/insumos`, { token: tokenAdmin, esperado: 404 });
+    await api(`${base}/insumos`, { esperado: 401 });
+    await api(`${base}/estoque/movimentacoes`, { esperado: 401 });
+  });
+
+  await checa(10, "RBAC: ALUNO le o estoque, mas nao cria insumo nem movimentacao (403)", async () => {
+    await api(`${base}/insumos`, { token: tokenAluno, esperado: 200 });
+    await api(`${base}/estoque/movimentacoes`, { token: tokenAluno, esperado: 200 });
+    await api(`${base}/insumos`, { metodo: "POST", token: tokenAluno, body: { nome: "Nao", unidade: "kg" }, esperado: 403 });
+    await api(`${base}/estoque/movimentacoes`, {
+      metodo: "POST",
+      token: tokenAluno,
+      body: { insumoId, tipo: "SAIDA", quantidade: 1 },
+      esperado: 403,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   console.log("\nLimpeza");
   // ─────────────────────────────────────────────────────────────
   await checa(0, "Remove os dados criados pelo smoke test", async () => {
@@ -585,5 +730,5 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     process.exit(1);
   }
 
-  console.log("\n\x1b[32mEntregaveis de backend das Sprints 3, 4 e 5 verificados.\x1b[0m\n");
+  console.log("\n\x1b[32mEntregaveis de backend das Sprints 3, 4, 5 e 10 verificados.\x1b[0m\n");
 })();
