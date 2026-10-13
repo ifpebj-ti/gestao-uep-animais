@@ -288,8 +288,8 @@
       </div>
     </div>
     <table style="margin-bottom:30px;">
-      <thead><tr><th>Insumo</th><th>Saldo atual</th><th>Estoque mínimo</th><th>Consumo médio/dia</th><th>Previsão</th><th>Status</th><th></th></tr></thead>
-      <tbody id="tabelaInsumos"><tr><td colspan="7">Carregando…</td></tr></tbody>
+      <thead><tr><th>Insumo</th><th>Saldo atual</th><th>Estoque mínimo</th><th>Consumo médio/dia</th><th>Previsão</th><th>Status</th><th>Observação</th><th></th></tr></thead>
+      <tbody id="tabelaInsumos"><tr><td colspan="8">Carregando…</td></tr></tbody>
     </table>
 
     <div class="toolbar-row"><div class="section-label" style="margin:0;">Histórico de movimentações</div></div>
@@ -402,17 +402,17 @@
 
 <!-- Modal: Cadastro de Animal -->
 <div id="modalAnimal" role="dialog" aria-modal="true" aria-labelledby="modalAnimalTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
-  <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(480px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
-    <h2 id="modalAnimalTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Novo Animal</h2>
+  <div style="background:#fff;border:1px solid #c8ead0;box-shadow:0 20px 50px rgba(0,0,0,.25);border-radius:12px;padding:2rem;width:min(480px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <h2 id="modalAnimalTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#1c1c1c;">Novo Animal</h2>
     <form id="formAnimal" onsubmit="event.preventDefault(); salvarAnimal();">
       <div style="display:grid;gap:.9rem;">
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">BRINCO / ID
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">BRINCO / ID
           <input id="anBrinco" type="text" placeholder="BV-0002" required
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;">
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">CATEGORIA
-            <select id="anCategoria" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">CATEGORIA
+            <select id="anCategoria" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
               <option value="">Selecione</option>
               <option>VACA</option><option>NOVILHA</option><option>BEZERRO</option>
               <option>BEZERRA</option><option>TOURO</option><option>DESMAMADO</option>
@@ -421,23 +421,23 @@
               <option>CABRITO</option><option>OUTRO</option>
             </select>
           </label>
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">SEXO
-            <select id="anSexo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">SEXO
+            <select id="anSexo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
               <option value="">Selecione</option>
               <option>MACHO</option><option>FEMEA</option>
             </select>
           </label>
         </div>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">RAÇA
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">RAÇA
           <input id="anRaca" type="text" placeholder="Nelore"
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">DATA DE NASCIMENTO
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">DATA DE NASCIMENTO
           <input id="anNasc" type="date"
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">STATUS REPRODUTIVO
-          <select id="anStatus" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">STATUS REPRODUTIVO
+          <select id="anStatus" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
             <option value="NAO_APLICAVEL">Não aplicável</option>
             <option value="PRENHE">Prenhe</option>
             <option value="VAZIA">Vazia</option>
@@ -446,16 +446,16 @@
             <option value="DESCARTE">Descarte</option>
           </select>
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">OBSERVAÇÕES
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">OBSERVAÇÕES
           <textarea id="anObs" rows="2" placeholder="Opcional..."
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;resize:vertical;"></textarea>
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;resize:vertical;"></textarea>
         </label>
       </div>
       <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:space-between;align-items:center;">
         <button type="button" id="btnRemoverAnimal" onclick="confirmarRemoverAnimal()" style="display:none;padding:.55rem 1rem;border-radius:7px;border:1px solid var(--if-red);background:transparent;color:var(--if-red);cursor:pointer;font-weight:600;">Remover animal</button>
         <div style="display:flex;gap:.75rem;margin-left:auto;">
           <button type="button" onclick="fecharModalAnimal()"
-            style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+            style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #c8ead0;background:#fff;color:#3a4a3f;cursor:pointer;">Cancelar</button>
           <button type="submit" id="btnSalvarAnimal"
             style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
         </div>
@@ -467,36 +467,36 @@
 <!-- Modal: Registrar Entrada/Saída de insumo (Sprint 10) -->
 <!-- BACKEND: POST /ueps/:uepId/estoque/movimentacoes -->
 <div id="modalMovimentacao" role="dialog" aria-modal="true" aria-labelledby="modalMovimentacaoTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
-  <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(460px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
-    <h2 id="modalMovimentacaoTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Registrar Entrada / Saída</h2>
+  <div style="background:#fff;border:1px solid #c8ead0;box-shadow:0 20px 50px rgba(0,0,0,.25);border-radius:12px;padding:2rem;width:min(460px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <h2 id="modalMovimentacaoTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#1c1c1c;">Registrar Entrada / Saída</h2>
     <div class="auth-error hidden" id="movError" style="max-width:none;"></div>
     <form id="formMovimentacao" onsubmit="event.preventDefault(); confirmarMovimentacao();">
       <div style="display:grid;gap:.9rem;">
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">TIPO DE MOVIMENTAÇÃO
-          <select id="movTipo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">TIPO DE MOVIMENTAÇÃO
+          <select id="movTipo" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
             <option value="ENTRADA">Entrada (compra, doação, reposição)</option>
             <option value="SAIDA">Saída (consumo, perda, transferência)</option>
           </select>
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">INSUMO
-          <select id="movInsumo" required onchange="atualizarUnidadeMovimentacao()" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;"></select>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">INSUMO
+          <select id="movInsumo" required onchange="atualizarUnidadeMovimentacao()" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;"></select>
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">QUANTIDADE <span id="movUnidadeLabel"></span>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">QUANTIDADE <span id="movUnidadeLabel"></span>
           <input id="movQuantidade" type="number" min="0.01" step="0.01" placeholder="0" required
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">DATA
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">DATA
           <input id="movData" type="date" required
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">OBSERVAÇÃO (OPCIONAL)
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">OBSERVAÇÃO (OPCIONAL)
           <input id="movObs" type="text" placeholder="Ex.: NF-e 000482, lote 12..."
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
       </div>
       <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
         <button type="button" onclick="fecharModalMovimentacao()"
-          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #c8ead0;background:#fff;color:#3a4a3f;cursor:pointer;">Cancelar</button>
         <button type="submit" id="btnSalvarMovimentacao"
           style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Confirmar movimentação</button>
       </div>
@@ -507,41 +507,41 @@
 <!-- Modal: Cadastrar novo insumo (Sprint 10) -->
 <!-- BACKEND: POST /ueps/:uepId/insumos -->
 <div id="modalInsumo" role="dialog" aria-modal="true" aria-labelledby="modalInsumoTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
-  <div style="background:#1a1a1a;border-radius:12px;padding:2rem;width:min(460px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
-    <h2 id="modalInsumoTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#fff;">Cadastrar insumo</h2>
+  <div style="background:#fff;border:1px solid #c8ead0;box-shadow:0 20px 50px rgba(0,0,0,.25);border-radius:12px;padding:2rem;width:min(460px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <h2 id="modalInsumoTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#1c1c1c;">Cadastrar insumo</h2>
     <div class="auth-error hidden" id="insumoError" style="max-width:none;"></div>
     <form id="formInsumo" onsubmit="event.preventDefault(); confirmarInsumo();">
       <div style="display:grid;gap:.9rem;">
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">NOME DO INSUMO
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">NOME DO INSUMO
           <input id="insNome" type="text" placeholder="Ex.: Ração bovina adulto" required
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;">
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">UNIDADE
-            <select id="insUnidade" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">UNIDADE
+            <select id="insUnidade" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
               <option value="kg">kg</option>
               <option value="sc">saca</option>
               <option value="L">litro</option>
               <option value="un">unidade</option>
             </select>
           </label>
-          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">SALDO INICIAL
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">SALDO INICIAL
             <input id="insSaldoInicial" type="number" min="0" step="0.01" placeholder="0" required
-              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+              style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
           </label>
         </div>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">ESTOQUE MÍNIMO (dispara alerta)
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">ESTOQUE MÍNIMO (dispara alerta)
           <input id="insMinimo" type="number" min="0" step="0.01" placeholder="0" required
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
-        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#aaa;">CONSUMO MÉDIO DIÁRIO
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">CONSUMO MÉDIO DIÁRIO
           <input id="insConsumo" type="number" min="0" step="0.01" placeholder="0" required
-            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #333;background:#111;color:#fff;font-size:.95rem;">
+            style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
         </label>
       </div>
       <div style="display:flex;gap:.75rem;margin-top:1.5rem;justify-content:flex-end;">
         <button type="button" onclick="fecharModalInsumo()"
-          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;">Cancelar</button>
+          style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #c8ead0;background:#fff;color:#3a4a3f;cursor:pointer;">Cancelar</button>
         <button type="submit" id="btnSalvarInsumo"
           style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#2f9e41;color:#fff;font-weight:600;cursor:pointer;">Cadastrar insumo</button>
       </div>

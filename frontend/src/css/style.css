@@ -118,6 +118,9 @@ tbody td{padding:13px 16px;font-size:14px;border-top:1px solid var(--gray-border
 /* Estoque de insumos (Sprint 10) — status "Normal" / "Crítico" na tabela de saldos */
 .tag.ok{background:#dcf5e3;color:#1e7e34;}
 .tag.critico{background:var(--danger-bg);color:var(--if-red);}
+
+/* Apoio às Compras (Sprint 12) — linha "Gerado em ..." logo abaixo dos parâmetros */
+.compras-nota{font-size:12px;color:var(--gray-text);margin:-6px 0 22px;min-height:1em;}
 .link-ver{color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;}
 
 .pagination{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:13px;color:var(--gray-text);}
