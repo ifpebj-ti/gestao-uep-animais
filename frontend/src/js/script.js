@@ -730,6 +730,23 @@ function insumoEmAlerta(insumo) {
   return Number(insumo.saldo_atual) <= Number(insumo.estoque_minimo);
 }
 
+/* Indicador "Comprar?" (Sprint 12): precisa comprar quando o saldo já está no
+   mínimo ou abaixo, ou quando dura menos de 7 dias no ritmo de consumo atual.
+   Calculado aqui mesmo, a partir dos dados que o estoque já carrega. */
+var DIAS_ALERTA_COMPRA = 7;
+function insumoPrecisaComprar(insumo) {
+  if (insumoEmAlerta(insumo)) return true;
+  var consumo = Number(insumo.consumo_medio_diario);
+  return consumo > 0 && Number(insumo.saldo_atual) / consumo < DIAS_ALERTA_COMPRA;
+}
+
+/* Escapa texto vindo da API antes de colocar em innerHTML */
+function escaparHtml(texto) {
+  return String(texto == null ? '' : texto)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 /* Previsão de duração do saldo atual, em dias inteiros, dado o consumo médio diário */
 function previsaoDias(insumo) {
   var consumo = Number(insumo.consumo_medio_diario);
@@ -761,7 +778,7 @@ function hojeISO() {
 function renderEstoque() {
   var uepId = currentSetor;
   var tbody = document.getElementById('tabelaInsumos');
-  tbody.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8">Carregando…</td></tr>';
 
   apiFetch('/ueps/' + uepId + '/insumos').then(function(insumos) {
     INSUMOS_CACHE = insumos || [];
@@ -785,27 +802,30 @@ function renderEstoque() {
     var linhas = INSUMOS_CACHE.map(function(insumo) {
       var alerta = insumoEmAlerta(insumo);
       return '<tr>' +
-          '<td class="brinco">' + insumo.nome + '</td>' +
+          '<td class="brinco">' + escaparHtml(insumo.nome) + '</td>' +
           '<td>' + insumo.saldo_atual + ' ' + insumo.unidade + '</td>' +
           '<td>' + insumo.estoque_minimo + ' ' + insumo.unidade + '</td>' +
           '<td>' + insumo.consumo_medio_diario + ' ' + insumo.unidade + '/dia</td>' +
           '<td>' + previsaoDias(insumo) + '</td>' +
           '<td><span class="tag ' + (alerta ? 'critico' : 'ok') + '">' + (alerta ? 'Crítico' : 'Normal') + '</span></td>' +
+          '<td>' + (insumoPrecisaComprar(insumo)
+            ? '<span class="tag critico">Comprar</span>'
+            : '<span class="tag ok">Não precisa</span>') + '</td>' +
           '<td><span class="link-ver" onclick="abrirModalMovimentacao(' + insumo.id + ')">movimentar</span></td>' +
         '</tr>';
     }).join('');
-    tbody.innerHTML = linhas || '<tr><td colspan="7">Nenhum insumo cadastrado nesta UEP ainda.</td></tr>';
+    tbody.innerHTML = linhas || '<tr><td colspan="8">Nenhum insumo cadastrado nesta UEP ainda.</td></tr>';
 
     var filtroAtual = document.getElementById('filtroInsumoMov').value;
     var opcoesInsumo = '<option value="">Insumo</option>';
     INSUMOS_CACHE.forEach(function(insumo) {
-      opcoesInsumo += '<option value="' + insumo.id + '"' + (String(insumo.id) === filtroAtual ? ' selected' : '') + '>' + insumo.nome + '</option>';
+      opcoesInsumo += '<option value="' + insumo.id + '"' + (String(insumo.id) === filtroAtual ? ' selected' : '') + '>' + escaparHtml(insumo.nome) + '</option>';
     });
     document.getElementById('filtroInsumoMov').innerHTML = opcoesInsumo;
 
     renderMovimentacoes();
   }).catch(function(err) {
-    tbody.innerHTML = '<tr><td colspan="7" style="color:#c00">Erro ao carregar insumos: ' + err.message + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#c00">Erro ao carregar insumos: ' + escaparHtml(err.message) + '</td></tr>';
   });
 }
 
