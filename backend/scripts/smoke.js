@@ -1,5 +1,5 @@
 /**
- * Smoke test dos entregaveis de backend das Sprints 3, 4, 5 e 10.
+ * Smoke test dos entregaveis de backend das Sprints 3, 4, 5, 10 e 12.
  *
  *   node backend/scripts/smoke.js
  *
@@ -63,7 +63,7 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
 }
 
 (async () => {
-  console.log(`\nSmoke test — Sprints 3, 4, 5, 10 + hierarquia de acesso`);
+  console.log(`\nSmoke test — Sprints 3, 4, 5, 10, 12 + hierarquia de acesso`);
   console.log(`API: ${BASE}\n`);
 
   // Sanidade: a API responde?
@@ -695,6 +695,99 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
   });
 
   // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 12 — Apoio as compras (necessidades consolidadas)");
+  // ─────────────────────────────────────────────────────────────
+  const necessidadesUrl = `/ueps/${uepId}/compras/necessidades`;
+
+  await checa(12, "Prepara insumos (critico, atencao, ok, sem consumo) e um animal em DESCARTE", async () => {
+    const insumos = [
+      { nome: "Compras A critico", unidade: "kg", saldoInicial: 5, estoqueMinimo: 10, consumoMedioDiario: 2 },
+      { nome: "Compras B atencao", unidade: "kg", saldoInicial: 20, estoqueMinimo: 5, consumoMedioDiario: 4 },
+      { nome: "Compras C ok", unidade: "kg", saldoInicial: 500, estoqueMinimo: 10, consumoMedioDiario: 1 },
+      { nome: "Compras D sem consumo", unidade: "kg", saldoInicial: 50, estoqueMinimo: 10, consumoMedioDiario: 0 },
+    ];
+    for (const body of insumos) {
+      await api(`/ueps/${uepId}/insumos`, { metodo: "POST", token: tokenAdmin, body, esperado: 201 });
+    }
+    const { dados } = await api(`/ueps/${uepId}/animais`, {
+      metodo: "POST",
+      token: tokenAdmin,
+      body: { brinco: "SMK-DESC", categoria: "VACA", sexo: "FEMEA", statusReprodutivo: "DESCARTE" },
+      esperado: 201,
+    });
+    animaisCriados.push(dados.id);
+  });
+
+  const porNome = (dados, nome) => dados.insumos.find((i) => i.nome === nome);
+
+  await checa(12, "GET necessidades (padrao 30 dias) devolve o contrato", async () => {
+    const { dados } = await api(necessidadesUrl, { token: tokenAdmin, esperado: 200 });
+    assert(dados.dias === 30, `dias esperado 30, veio ${dados.dias}`);
+    assert(!Number.isNaN(Date.parse(dados.gerado_em)), `gerado_em invalido: ${dados.gerado_em}`);
+    assert(Array.isArray(dados.insumos) && Array.isArray(dados.animais), "insumos/animais devem ser arrays");
+    const a = porNome(dados, "Compras A critico");
+    for (const campo of ["insumo_id", "nome", "unidade", "saldo_atual", "estoque_minimo", "consumo_medio_diario", "previsao_dias", "quantidade_sugerida", "urgencia"]) {
+      assert(campo in a, `campo ausente no insumo: ${campo}`);
+    }
+  });
+
+  await checa(12, "Urgencia e quantidade sugerida seguem a regra (30 dias)", async () => {
+    const { dados } = await api(necessidadesUrl, { token: tokenAdmin, esperado: 200 });
+    const a = porNome(dados, "Compras A critico");
+    const b = porNome(dados, "Compras B atencao");
+    const c = porNome(dados, "Compras C ok");
+    const d = porNome(dados, "Compras D sem consumo");
+    // A: 2*30 + 10 - 5 = 65, saldo 5 <= minimo 10
+    assert(a.urgencia === "CRITICA" && a.quantidade_sugerida === 65 && a.previsao_dias === 2, `A errado: ${JSON.stringify(a)}`);
+    // B: 4*30 + 5 - 20 = 105, previsao 5 dias (< 7)
+    assert(b.urgencia === "ATENCAO" && b.quantidade_sugerida === 105 && b.previsao_dias === 5, `B errado: ${JSON.stringify(b)}`);
+    // C: 1*30 + 10 - 500 < 0 -> 0
+    assert(c.urgencia === "OK" && c.quantidade_sugerida === 0 && c.previsao_dias === 500, `C errado: ${JSON.stringify(c)}`);
+    // D: sem consumo -> sem previsao; 0*30 + 10 - 50 < 0 -> 0
+    assert(d.urgencia === "OK" && d.quantidade_sugerida === 0 && d.previsao_dias === null, `D errado: ${JSON.stringify(d)}`);
+  });
+
+  await checa(12, "Mais urgente primeiro na lista de insumos", async () => {
+    const { dados } = await api(necessidadesUrl, { token: tokenAdmin, esperado: 200 });
+    const pos = (nome) => dados.insumos.findIndex((i) => i.nome === nome);
+    assert(pos("Compras A critico") < pos("Compras B atencao"), "CRITICA deveria vir antes de ATENCAO");
+    assert(pos("Compras B atencao") < pos("Compras C ok"), "ATENCAO deveria vir antes de OK");
+  });
+
+  await checa(12, "?dias= muda o horizonte da quantidade sugerida", async () => {
+    const { dados } = await api(`${necessidadesUrl}?dias=10`, { token: tokenAdmin, esperado: 200 });
+    assert(dados.dias === 10, `dias esperado 10, veio ${dados.dias}`);
+    // A: 2*10 + 10 - 5 = 25 ; B: 4*10 + 5 - 20 = 25
+    assert(porNome(dados, "Compras A critico").quantidade_sugerida === 25, "A com 10 dias deveria sugerir 25");
+    assert(porNome(dados, "Compras B atencao").quantidade_sugerida === 25, "B com 10 dias deveria sugerir 25");
+  });
+
+  await checa(12, "?dias= invalido devolve 400", async () => {
+    for (const ruim of ["0", "-5", "abc", "1.5", "366"]) {
+      await api(`${necessidadesUrl}?dias=${ruim}`, { token: tokenAdmin, esperado: 400 });
+    }
+  });
+
+  await checa(12, "Animais: total por categoria, descarte e reposicao sugerida", async () => {
+    const { dados } = await api(necessidadesUrl, { token: tokenAdmin, esperado: 200 });
+    const lista = await api(`/ueps/${uepId}/animais`, { token: tokenAdmin, esperado: 200 });
+    const soma = dados.animais.reduce((acc, l) => acc + l.total, 0);
+    assert(soma === lista.dados.length, `soma por categoria ${soma} diferente do total de animais ${lista.dados.length}`);
+    const descartes = lista.dados.filter((an) => an.status_reprodutivo === "DESCARTE").length;
+    const somaDescarte = dados.animais.reduce((acc, l) => acc + l.em_descarte, 0);
+    assert(descartes >= 1 && somaDescarte === descartes, `descartes esperados ${descartes}, veio ${somaDescarte}`);
+    assert(dados.animais.every((l) => l.reposicao_sugerida === l.em_descarte), "reposicao_sugerida deveria ser igual a em_descarte");
+    const vaca = dados.animais.find((l) => l.categoria === "VACA");
+    assert(vaca && vaca.em_descarte >= 1, "categoria VACA deveria ter ao menos 1 em descarte");
+  });
+
+  await checa(12, "Acesso: ALUNO le (200), sem token 401, UEP inexistente 404", async () => {
+    await api(necessidadesUrl, { token: tokenAluno, esperado: 200 });
+    await api(necessidadesUrl, { esperado: 401 });
+    await api(`/ueps/99999999/compras/necessidades`, { token: tokenAdmin, esperado: 404 });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   console.log("\nLimpeza");
   // ─────────────────────────────────────────────────────────────
   await checa(0, "Remove os dados criados pelo smoke test", async () => {
@@ -730,5 +823,5 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     process.exit(1);
   }
 
-  console.log("\n\x1b[32mEntregaveis de backend das Sprints 3, 4, 5 e 10 verificados.\x1b[0m\n");
+  console.log("\n\x1b[32mEntregaveis de backend das Sprints 3, 4, 5, 10 e 12 verificados.\x1b[0m\n");
 })();
