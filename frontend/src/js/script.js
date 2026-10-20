@@ -133,7 +133,7 @@ var ROLES = {
 /* Regras de visibilidade das abas por perfil (ver SEÇÃO 10 — toggleTabsByRole):
    - .op-only         → abas "operacionais" (Painel, Gestão do Rebanho, Estoque de Ração).
                         Visíveis para todos os perfis, EXCETO Diretoria.
-   - .admin-only      → abas "Relatórios (PDF)" e "Controle de Acesso". Visíveis SOMENTE para Diretoria.
+   - .admin-only      → abas "Relatórios" e "Controle de Acesso". Visíveis SOMENTE para Diretoria.
    - .professor-only  → aba "Minha Equipe". Visível SOMENTE para Professor.
    - Notas Fiscais não tem classe: fica visível para todo mundo, sempre.
    Resultado prático: a Diretoria só enxerga Notas Fiscais + Relatórios + Controle de Acesso
@@ -1004,6 +1004,619 @@ document.addEventListener('keydown', function(e) {
 
 
 /* =====================================================================
+   8D. RELATÓRIOS DO GESTOR (Sprint 13) — aba exclusiva da Diretoria
+   Painel com um cartão por relatório e um botão de exportação em PDF. O
+   frontend só pede o arquivo e entrega o download; quem monta o PDF é o
+   backend. Contrato esperado:
+
+     POST /relatorios/:tipo/gerar          (JWT; somente perfil ADMIN)
+       :tipo  = 'censo-geral' | 'status-reprodutivo' | 'movimentacao-estoque'
+       corpo  = {
+                  formato:    'pdf',                   // sempre enviado (hoje só existe PDF)
+                  uepId:      number,                  // opcional: sem ele = todas as UEPs
+                  dataInicio: 'yyyy-mm-dd',            // só em relatórios que usam período
+                  dataFim:    'yyyy-mm-dd'             //   (movimentacao-estoque)
+                }
+       200    = o ARQUIVO PDF (corpo binário), com
+                  Content-Type: application/pdf
+                  Content-Disposition: attachment; filename="relatorio-censo-geral-2026-10-20.pdf"
+                (como o front roda em outra origem, o backend precisa expor esse header:
+                 Access-Control-Expose-Headers: Content-Disposition. Sem ele o front
+                 ainda funciona e usa um nome de arquivo padrão.)
+       erros  = JSON { error: "mensagem" } com 400 (tipo/formato/datas inválidos),
+                401/403 (sem permissão) ou 404 (UEP não encontrada).
+
+   Para criar um relatório novo, basta incluir um item em RELATORIOS_TIPOS.
+   (Para voltar a oferecer Excel: acrescente 'xlsx' em RELATORIO_FORMATOS.)
+   ===================================================================== */
+
+/* tipo (vai na URL) · usaPeriodo: se o backend deve receber dataInicio/dataFim */
+var RELATORIOS_TIPOS = [
+  { tipo: 'censo-geral',          titulo: 'Censo geral',             usaPeriodo: false, icone: 'doc',
+    descricao: 'Distribuição por categoria, raça e disponibilidade.' },
+  { tipo: 'status-reprodutivo',   titulo: 'Status reprodutivo',      usaPeriodo: false, icone: 'doc',
+    descricao: 'Fase reprodutiva de cada animal, agrupado por categoria.' },
+  { tipo: 'movimentacao-estoque', titulo: 'Movimentação de estoque', usaPeriodo: true,  icone: 'estoque',
+    descricao: 'Entradas e saídas de ração e insumos no período.' }
+];
+
+var RELATORIO_FORMATOS = {
+  pdf: { rotulo: 'PDF', ext: 'pdf' }
+};
+
+/* ícone de "baixar" que vai dentro dos botões PDF / Excel */
+var RELATORIO_ICONE_DOWNLOAD = '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>';
+
+var RELATORIO_ICONES = {
+  doc:     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  estoque: '<path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/>'
+};
+
+/* Desenha os cartões e preenche o filtro de setor. Chamada em enterApp() (Diretoria). */
+function renderRelatorios() {
+  document.getElementById('relatoriosGrid').innerHTML = RELATORIOS_TIPOS.map(function(r) {
+    var botoes = Object.keys(RELATORIO_FORMATOS).map(function(formato, i) {
+      return '<button type="button" class="btn' + (i === 0 ? '' : ' outline') + '" ' +
+             'onclick="baixarRelatorio(\'' + r.tipo + '\', \'' + formato + '\', this)">' +
+             RELATORIO_ICONE_DOWNLOAD + 'Baixar ' + RELATORIO_FORMATOS[formato].rotulo + '</button>';
+    }).join('');
+    return '<div class="report-card">' +
+        '<div class="r-icon"><svg class="icon" viewBox="0 0 24 24">' + RELATORIO_ICONES[r.icone] + '</svg></div>' +
+        '<h3>' + r.titulo + '</h3>' +
+        '<p>' + r.descricao + '</p>' +
+        '<p class="r-nota">' + (r.usaPeriodo ? 'Respeita o período selecionado.' : 'Retrato atual (não depende do período).') + '</p>' +
+        '<div class="report-actions">' + botoes + '</div>' +
+      '</div>';
+  }).join('');
+
+  // botões "+ relatório" da seção Unir PDFs (mesma lista de relatórios dos cartões)
+  document.getElementById('uniaoRelatorios').innerHTML = RELATORIOS_TIPOS.map(function(r) {
+    return '<button type="button" class="btn outline" style="padding:8px 16px;font-size:13px;" onclick="adicionarRelatorioNaUniao(\'' + r.tipo + '\')">+ ' + r.titulo + '</button>';
+  }).join('');
+
+  apiFetch('/ueps').then(function(ueps) {
+    var select = document.getElementById('relSetor');
+    var atual = select.value;
+    select.innerHTML = '<option value="">Todos os setores</option>' + (ueps || []).map(function(u) {
+      return '<option value="' + u.id + '"' + (String(u.id) === atual ? ' selected' : '') + '>' + escaparHtml(u.nome) + '</option>';
+    }).join('');
+  }).catch(function() { /* sem a lista, o filtro fica só em "Todos os setores" */ });
+}
+
+/* yyyy-mm-dd no horário local (toISOString usaria UTC e podia "virar o dia") */
+function dataLocalISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/* Mostra os dois campos de data só no período "Personalizado" (já preenchidos com os últimos 30 dias) */
+function atualizarPeriodoPersonalizado() {
+  var personalizado = document.getElementById('relPeriodo').value === 'personalizado';
+  document.getElementById('relPeriodoPersonalizado').style.display = personalizado ? 'inline-flex' : 'none';
+  if (personalizado && !document.getElementById('relDataFim').value) {
+    var hoje = new Date();
+    var inicio = new Date(); inicio.setDate(inicio.getDate() - 30);
+    document.getElementById('relDataInicio').value = dataLocalISO(inicio);
+    document.getElementById('relDataFim').value = dataLocalISO(hoje);
+  }
+}
+
+/* { dataInicio, dataFim } do filtro de período, ou { erro } se estiver inválido */
+function periodoSelecionado() {
+  var valor = document.getElementById('relPeriodo').value;
+  if (valor === 'personalizado') {
+    var ini = document.getElementById('relDataInicio').value;
+    var fim = document.getElementById('relDataFim').value;
+    if (!ini || !fim) return { erro: 'Informe a data inicial e a data final do período.' };
+    if (ini > fim) return { erro: 'A data inicial não pode ser depois da data final.' };
+    return { dataInicio: ini, dataFim: fim };
+  }
+  var hoje = new Date();
+  var inicio = new Date(); inicio.setDate(inicio.getDate() - Number(valor));
+  return { dataInicio: dataLocalISO(inicio), dataFim: dataLocalISO(hoje) };
+}
+
+function mostrarErroRelatorio(mensagem) {
+  document.getElementById('relatoriosErroTexto').textContent = ' ' + mensagem;
+  document.getElementById('relatoriosErro').classList.remove('hidden');
+}
+function esconderErroRelatorio() {
+  document.getElementById('relatoriosErro').classList.add('hidden');
+}
+
+/* Extrai o nome do arquivo do header Content-Disposition (ou null) */
+function nomeArquivoDoHeader(header) {
+  if (!header) return null;
+  var m = /filename\*=UTF-8''([^;]+)/i.exec(header) || /filename="?([^";]+)"?/i.exec(header);
+  if (!m) return null;
+  var nome = m[1];
+  try { nome = decodeURIComponent(nome); } catch (e) { /* mantém como veio */ }
+  return nome.replace(/[\\\/:*?"<>|]/g, '_'); // nunca deixa o servidor escolher uma pasta
+}
+
+/* Dispara o download de um Blob no navegador */
+function salvarArquivo(blob, nome) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+/* Botões PDF / Excel de cada cartão — pede o arquivo ao backend e baixa */
+function baixarRelatorio(tipo, formato, botao) {
+  var def = RELATORIOS_TIPOS.filter(function(r) { return r.tipo === tipo; })[0];
+  var fmt = RELATORIO_FORMATOS[formato];
+  if (!def || !fmt) return;
+
+  esconderErroRelatorio();
+  var corpo = { formato: formato };
+  var uepId = document.getElementById('relSetor').value;
+  if (uepId) corpo.uepId = Number(uepId);
+  if (def.usaPeriodo) {
+    var periodo = periodoSelecionado();
+    if (periodo.erro) { mostrarErroRelatorio(periodo.erro); return; }
+    corpo.dataInicio = periodo.dataInicio;
+    corpo.dataFim = periodo.dataFim;
+  }
+
+  var rotulo = botao.innerHTML; // innerHTML: preserva o ícone do botão
+  botao.disabled = true;
+  botao.textContent = 'Gerando…';
+
+  var headers = { 'Content-Type': 'application/json' };
+  if (getToken()) headers['Authorization'] = 'Bearer ' + getToken();
+
+  // fetch direto (e não apiFetch): a resposta aqui é um arquivo, não JSON
+  fetch(API_BASE + '/relatorios/' + tipo + '/gerar', { method: 'POST', headers: headers, body: JSON.stringify(corpo) })
+    .then(function(res) {
+      if (!res.ok) {
+        return res.json().catch(function() { return null; }).then(function(body) {
+          throw new Error((body && body.error) ? body.error : mensagemGenericaPorStatus(res.status));
+        });
+      }
+      return res.blob().then(function(blob) {
+        if (!blob.size) throw new Error('O servidor devolveu um arquivo vazio.');
+        var nome = nomeArquivoDoHeader(res.headers.get('Content-Disposition')) ||
+                   ('relatorio-' + tipo + '-' + dataLocalISO(new Date()) + '.' + fmt.ext);
+        salvarArquivo(blob, nome);
+        mostrarToast('Relatório gerado: ' + nome);
+      });
+    })
+    .catch(function(err) {
+      // TypeError = o fetch nem chegou no servidor (API fora do ar, sem rede, CORS)
+      mostrarErroRelatorio(err instanceof TypeError ? 'Não foi possível falar com o servidor. Tente de novo em instantes.' : err.message);
+    })
+    .then(function() {
+      botao.disabled = false;
+      botao.innerHTML = rotulo;
+    });
+}
+
+
+/* =====================================================================
+   8E. DOCUMENTOS DOS PROFESSORES + UNIÃO DE PDFs (Sprint 13)
+   - Professor e Diretoria (aba Notas Fiscais): enviam PDFs (notas fiscais e
+     outros) e veem / removem os próprios envios. Os PDFs que a Diretoria
+     adiciona ficam no mesmo repositório dos enviados pelos professores.
+   - Diretoria: vê tudo o que foi enviado (aba Notas Fiscais) e, na aba
+     Relatórios, escolhe quais PDFs juntar, define a ordem e baixa o PDF
+     unido. Entram na junção: documentos já enviados, PDFs que a Diretoria
+     adiciona do computador (sobem como documentos) e relatórios gerados na
+     hora. A junção é feita pelo BACKEND: o front só manda a lista de itens
+     na ordem escolhida e baixa o PDF unido.
+
+   Contrato esperado do backend (todas as rotas com JWT):
+
+     POST   /documentos            multipart/form-data  (PROFESSOR e ADMIN)
+              arquivo   = o PDF (campo de arquivo; só application/pdf, até 10 MB)
+              tipo      = 'NOTA_FISCAL' | 'OUTRO'
+              descricao = texto opcional (até 120 caracteres)
+              uepId     = opcional: UEP em que o professor estava ao enviar
+            201 -> o documento criado (formato abaixo)
+
+     GET    /documentos            ADMIN: todos | PROFESSOR: só os próprios
+            200 -> [ documento, ... ]   (mais recentes primeiro; também aceito { data: [...] })
+              documento = { id, nome_original, tipo, descricao, tamanho_bytes,
+                            uep_id, uep_nome, enviado_por, enviado_por_nome, created_at }
+
+     GET    /documentos/:id/arquivo   ADMIN: qualquer um | PROFESSOR: só o próprio
+            200 -> o PDF (binário, Content-Type: application/pdf)
+
+     DELETE /documentos/:id        PROFESSOR: só o próprio | ADMIN: qualquer um
+            204 sem corpo
+
+     POST   /documentos/unir       somente ADMIN — junta vários PDFs em um
+            corpo = { itens: [                       // a ORDEM do array é a ordem das páginas; mínimo 2
+                      { origem: 'documento', id: 3 },                    // PDF já guardado no sistema
+                      { origem: 'relatorio', relatorio: 'censo-geral',   // relatório gerado na hora, com os
+                        uepId: 1, dataInicio: 'yyyy-mm-dd', dataFim: 'yyyy-mm-dd' }  // mesmos parâmetros de POST /relatorios/:tipo/gerar
+                    ] }                              // (uepId/dataInicio/dataFim são opcionais, como lá)
+            200 -> o PDF unido (binário, Content-Type: application/pdf,
+                   Content-Disposition: attachment; filename="uniao-documentos-2026-10-20.pdf";
+                   precisa de Access-Control-Expose-Headers: Content-Disposition)
+            400 -> menos de 2 itens / item inválido / algum arquivo não é um PDF legível
+            404 -> algum documento (id) não existe
+
+     Erros: JSON { error: "mensagem" } — 400 (arquivo ausente / não é PDF / grande demais),
+            401/403 (sem permissão), 404 (documento não encontrado).
+   ===================================================================== */
+
+var DOCUMENTOS_CACHE = [];
+var DOCUMENTO_MAX_MB = 10;
+var DOCUMENTO_TIPOS = { NOTA_FISCAL: 'Nota fiscal', OUTRO: 'Outro PDF' };
+var documentosRequisicaoAtual = 0;
+
+/* PDFs escolhidos para a junção, NA ORDEM em que vão aparecer no arquivo final.
+   item = { origem: 'documento', id, nome }
+        | { origem: 'relatorio', relatorio, nome, detalhe, uepId?, dataInicio?, dataFim? } */
+var UNIR_SELECAO = [];
+
+/* ---------- helpers ---------- */
+
+function cabecalhoAuth() {
+  var h = {};
+  if (getToken()) h['Authorization'] = 'Bearer ' + getToken();
+  return h;
+}
+
+/* Para respostas de erro de rotas que não passam pelo apiFetch (upload e download de arquivo) */
+function rejeitarComErroDaResposta(res) {
+  return res.json().catch(function() { return null; }).then(function(body) {
+    throw new Error((body && body.error) ? body.error : mensagemGenericaPorStatus(res.status));
+  });
+}
+
+/* TypeError = o fetch nem chegou no servidor (API fora do ar, sem rede, CORS) */
+function mensagemDeErro(err) {
+  return err instanceof TypeError ? 'Não foi possível falar com o servidor. Tente de novo em instantes.' : err.message;
+}
+
+function ehArquivoPdf(arquivo) {
+  return arquivo.type === 'application/pdf' || /\.pdf$/i.test(arquivo.name);
+}
+
+function formatarTamanho(bytes) {
+  var n = Number(bytes);
+  if (!n) return '';
+  if (n < 1024 * 1024) return Math.max(1, Math.round(n / 1024)) + ' KB';
+  return (n / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB';
+}
+
+/* Cada pessoa só remove o que ela mesma enviou (o backend também confere isso) */
+function souDonoDoDocumento(d) {
+  return !!(currentUser && d.enviado_por != null && Number(d.enviado_por) === Number(currentUser.id));
+}
+
+function tituloDocumento(d) {
+  return d.descricao || d.nome_original || ('Documento ' + d.id);
+}
+
+function mostrarErroDocumentos(titulo, mensagem) {
+  document.getElementById('documentosErroTitulo').textContent = titulo;
+  document.getElementById('documentosErroTexto').textContent = ' ' + mensagem;
+  document.getElementById('documentosErro').classList.remove('hidden');
+}
+function esconderErroDocumentos() { document.getElementById('documentosErro').classList.add('hidden'); }
+
+function mostrarErroUniao(mensagem) {
+  document.getElementById('uniaoErroTexto').textContent = ' ' + mensagem;
+  document.getElementById('uniaoErro').classList.remove('hidden');
+}
+function esconderErroUniao() { document.getElementById('uniaoErro').classList.add('hidden'); }
+
+/* ---------- lista de documentos (aba Notas Fiscais) ---------- */
+
+/* Busca os documentos e repinta tudo que depende deles. Chamada ao entrar no app,
+   ao abrir as abas Notas Fiscais / Relatórios e depois de enviar ou remover. */
+function renderDocumentos() {
+  var ehDiretoria = currentRole === 'diretoria';
+  var ehProfessor = currentRole === 'professor';
+  var lista = document.getElementById('listaDocumentos');
+
+  document.getElementById('notasSubtitulo').textContent = ehDiretoria
+    ? 'Notas fiscais e PDFs enviados pelos professores e por você'
+    : (ehProfessor ? 'Envie notas fiscais e outros PDFs para a Diretoria' : 'Documentos enviados à Diretoria');
+  document.getElementById('documentosTitulo').textContent = ehDiretoria ? 'Todos os documentos' : 'Meus envios';
+  document.getElementById('envioTitulo').textContent = ehDiretoria ? 'Adicionar nota fiscal ou PDF' : 'Enviar para a Diretoria';
+  document.getElementById('blocoEnvioDoc').classList.toggle('hidden', !ehDiretoria && !ehProfessor);
+
+  if (!ehDiretoria && !ehProfessor) {
+    lista.innerHTML = '<div class="nf-row"><span style="color:var(--gray-text);">Somente professores enviam documentos à Diretoria.</span></div>';
+    return;
+  }
+
+  var requisicao = ++documentosRequisicaoAtual;
+  apiFetch('/documentos').then(function(resp) {
+    if (requisicao !== documentosRequisicaoAtual) return; // resposta atrasada, já tem uma mais nova
+    DOCUMENTOS_CACHE = Array.isArray(resp) ? resp : ((resp && resp.data) || []);
+    // se um professor removeu um documento que estava marcado, tira da seleção
+    UNIR_SELECAO = UNIR_SELECAO.filter(function(item) {
+      return item.origem === 'relatorio' || DOCUMENTOS_CACHE.some(function(d) { return Number(d.id) === item.id; });
+    });
+    renderListaDocumentos();
+    if (ehDiretoria) { renderTabelaUniao(); renderOrdemUniao(); }
+  }).catch(function(err) {
+    if (requisicao !== documentosRequisicaoAtual) return;
+    var linha = '<div class="nf-row"><span style="color:#c00">Erro ao carregar documentos: ' + escaparHtml(err.message) + '</span></div>';
+    lista.innerHTML = linha;
+    if (ehDiretoria) document.getElementById('tabelaUniao').innerHTML =
+      '<tr><td colspan="6" style="color:#c00">Erro ao carregar documentos: ' + escaparHtml(err.message) + '</td></tr>';
+  });
+}
+
+function renderListaDocumentos() {
+  var ehDiretoria = currentRole === 'diretoria';
+  var lista = document.getElementById('listaDocumentos');
+  if (!DOCUMENTOS_CACHE.length) {
+    lista.innerHTML = '<div class="nf-row"><span style="color:var(--gray-text);">' +
+      (ehDiretoria ? 'Nenhum documento por aqui ainda.' : 'Você ainda não enviou nenhum documento.') + '</span></div>';
+    return;
+  }
+  lista.innerHTML = DOCUMENTOS_CACHE.map(function(d) {
+    var id = Number(d.id);
+    var partes = [DOCUMENTO_TIPOS[d.tipo] || 'PDF'];
+    if (ehDiretoria && d.enviado_por_nome) partes.push(souDonoDoDocumento(d) ? 'enviado por você' : 'enviado por ' + d.enviado_por_nome);
+    if (d.uep_nome) partes.push(d.uep_nome);
+    partes.push(formatarDataBR(d.created_at));
+    if (d.tamanho_bytes) partes.push(formatarTamanho(d.tamanho_bytes));
+    return '<div class="nf-row">' +
+        '<span><b>' + escaparHtml(tituloDocumento(d)) + '</b><br><span class="meta">' + escaparHtml(partes.join(' · ')) + '</span></span>' +
+        '<span style="display:flex;gap:16px;align-items:center;flex:none;">' +
+          '<span class="link-ver" onclick="abrirDocumento(' + id + ')">Abrir</span>' +
+          (souDonoDoDocumento(d) ? '<span class="link-ver" style="color:var(--if-red);" onclick="removerDocumento(' + id + ')">Remover</span>' : '') +
+        '</span>' +
+      '</div>';
+  }).join('');
+}
+
+/* ---------- envio (Professor) ---------- */
+
+/* onsubmit do formulário "Enviar à Diretoria" — POST /documentos (multipart) */
+function enviarDocumento(e) {
+  e.preventDefault();
+  esconderErroDocumentos();
+  var arquivo = document.getElementById('docArquivo').files[0];
+  if (!arquivo) { mostrarErroDocumentos('Escolha um arquivo', 'Selecione o PDF que você quer enviar.'); return; }
+  if (!ehArquivoPdf(arquivo)) { mostrarErroDocumentos('Arquivo inválido', 'Só é possível enviar arquivos PDF.'); return; }
+  if (arquivo.size > DOCUMENTO_MAX_MB * 1048576) {
+    mostrarErroDocumentos('Arquivo grande demais', 'O limite é de ' + DOCUMENTO_MAX_MB + ' MB por arquivo.');
+    return;
+  }
+
+  var dados = new FormData();
+  dados.append('arquivo', arquivo);
+  dados.append('tipo', document.getElementById('docTipo').value);
+  var descricao = document.getElementById('docDescricao').value.trim();
+  if (descricao) dados.append('descricao', descricao);
+  if (currentSetor) dados.append('uepId', currentSetor);
+
+  var botao = document.getElementById('btnEnviarDoc');
+  var rotulo = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = 'Enviando…';
+
+  // fetch direto (e não apiFetch): o corpo é multipart, e o navegador precisa
+  // definir o Content-Type sozinho (com o "boundary") — não podemos forçar JSON
+  fetch(API_BASE + '/documentos', { method: 'POST', headers: cabecalhoAuth(), body: dados })
+    .then(function(res) {
+      if (!res.ok) return rejeitarComErroDaResposta(res);
+      document.getElementById('docArquivo').value = '';
+      document.getElementById('docDescricao').value = '';
+      mostrarToast(currentRole === 'diretoria' ? 'Documento adicionado' : 'Documento enviado à Diretoria');
+      renderDocumentos();
+    })
+    .catch(function(err) { mostrarErroDocumentos('Não foi possível enviar', mensagemDeErro(err)); })
+    .then(function() { botao.disabled = false; botao.textContent = rotulo; });
+}
+
+/* "Remover" na lista do Professor — DELETE /documentos/:id */
+function removerDocumento(id) {
+  var doc = DOCUMENTOS_CACHE.filter(function(d) { return Number(d.id) === id; })[0];
+  if (!doc || !window.confirm('Remover "' + tituloDocumento(doc) + '"? A Diretoria não verá mais este documento.')) return;
+  esconderErroDocumentos();
+  apiFetch('/documentos/' + id, { method: 'DELETE' }).then(function() {
+    mostrarToast('Documento removido');
+    renderDocumentos();
+  }).catch(function(err) { mostrarErroDocumentos('Não foi possível remover', mensagemDeErro(err)); });
+}
+
+/* "Abrir": baixa o PDF com o token (um link direto não levaria o JWT) e abre numa aba nova */
+function abrirDocumento(id) {
+  var doc = DOCUMENTOS_CACHE.filter(function(d) { return Number(d.id) === id; })[0];
+  var aba = window.open('', '_blank'); // abre já, no clique, para o bloqueador de pop-up não barrar
+  fetch(API_BASE + '/documentos/' + id + '/arquivo', { headers: cabecalhoAuth() })
+    .then(function(res) { return res.ok ? res.blob() : rejeitarComErroDaResposta(res); })
+    .then(function(blob) {
+      var pdf = new Blob([blob], { type: 'application/pdf' });
+      var url = URL.createObjectURL(pdf);
+      if (aba) aba.location = url; else salvarArquivo(pdf, (doc && doc.nome_original) || ('documento-' + id + '.pdf'));
+      setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+    })
+    .catch(function(err) {
+      if (aba) aba.close();
+      var msg = mensagemDeErro(err);
+      if (currentRole === 'diretoria' && document.getElementById('relatorios').classList.contains('active')) mostrarErroUniao(msg);
+      else mostrarErroDocumentos('Não foi possível abrir o documento', msg);
+    });
+}
+
+/* ---------- união de PDFs (Diretoria, aba Relatórios) ---------- */
+
+function renderTabelaUniao() {
+  var tipo = document.getElementById('uniaoFiltroTipo').value;
+  var docs = DOCUMENTOS_CACHE.filter(function(d) { return !tipo || d.tipo === tipo; });
+  var tbody = document.getElementById('tabelaUniao');
+  if (!docs.length) {
+    tbody.innerHTML = '<tr><td colspan="6">' + (DOCUMENTOS_CACHE.length ? 'Nenhum documento deste tipo.' : 'Nenhum documento por aqui ainda.') + '</td></tr>';
+    return;
+  }
+  tbody.innerHTML = docs.map(function(d) {
+    var id = Number(d.id);
+    var marcado = UNIR_SELECAO.some(function(i) { return i.origem === 'documento' && i.id === id; });
+    var detalhe = [DOCUMENTO_TIPOS[d.tipo] || 'PDF'];
+    if (d.tamanho_bytes) detalhe.push(formatarTamanho(d.tamanho_bytes));
+    return '<tr>' +
+        '<td><input type="checkbox" ' + (marcado ? 'checked ' : '') + 'onchange="alternarSelecaoUniao(' + id + ', this.checked)" aria-label="Selecionar para unir" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;"></td>' +
+        '<td class="brinco">' + escaparHtml(tituloDocumento(d)) + '<br><span style="font-weight:400;font-size:12px;color:var(--gray-text);">' + escaparHtml(detalhe.join(' · ')) + '</span></td>' +
+        '<td>' + escaparHtml(souDonoDoDocumento(d) ? 'Você' : (d.enviado_por_nome || '—')) + '</td>' +
+        '<td>' + escaparHtml(d.uep_nome || '—') + '</td>' +
+        '<td>' + formatarDataBR(d.created_at) + '</td>' +
+        '<td><span class="link-ver" onclick="abrirDocumento(' + id + ')">Abrir</span></td>' +
+      '</tr>';
+  }).join('');
+}
+
+/* Marcar / desmarcar um documento recebido: entra no fim da fila (ou sai dela) */
+function alternarSelecaoUniao(id, marcado) {
+  esconderErroUniao();
+  UNIR_SELECAO = UNIR_SELECAO.filter(function(i) { return !(i.origem === 'documento' && i.id === id); });
+  if (marcado) {
+    var doc = DOCUMENTOS_CACHE.filter(function(d) { return Number(d.id) === id; })[0];
+    if (doc) UNIR_SELECAO.push({ origem: 'documento', id: id, nome: tituloDocumento(doc) });
+  }
+  renderOrdemUniao();
+}
+
+/* Botões "+ Censo geral", "+ Status reprodutivo"...: entram na fila como um relatório que o
+   backend gera na hora (com o setor e o período escolhidos nos filtros do topo da tela) */
+function adicionarRelatorioNaUniao(tipo) {
+  esconderErroUniao();
+  var def = RELATORIOS_TIPOS.filter(function(r) { return r.tipo === tipo; })[0];
+  if (!def) return;
+  var select = document.getElementById('relSetor');
+  var item = { origem: 'relatorio', relatorio: tipo, nome: 'Relatório: ' + def.titulo };
+  var detalhe = [select.value ? select.options[select.selectedIndex].text : 'todos os setores'];
+  if (select.value) item.uepId = Number(select.value);
+  if (def.usaPeriodo) {
+    var periodo = periodoSelecionado();
+    if (periodo.erro) { mostrarErroUniao(periodo.erro); return; }
+    item.dataInicio = periodo.dataInicio;
+    item.dataFim = periodo.dataFim;
+    detalhe.push(formatarDataBR(periodo.dataInicio) + ' a ' + formatarDataBR(periodo.dataFim));
+  }
+  item.detalhe = detalhe.join(' · ');
+  UNIR_SELECAO.push(item);
+  renderOrdemUniao();
+}
+
+/* "+ Adicionar PDF do computador": cada PDF sobe para o sistema (POST /documentos, como "Outro PDF")
+   e já entra na fila da junção — assim o backend consegue juntá-lo e ele fica guardado para depois */
+function adicionarPdfsLocais(input) {
+  esconderErroUniao();
+  var arquivos = Array.prototype.slice.call(input.files);
+  input.value = ''; // permite escolher o mesmo arquivo de novo depois
+  if (!arquivos.length) return;
+
+  var problemas = [];
+  var validos = arquivos.filter(function(a) {
+    if (!ehArquivoPdf(a)) { problemas.push(a.name + ' (não é PDF)'); return false; }
+    if (a.size > DOCUMENTO_MAX_MB * 1048576) { problemas.push(a.name + ' (maior que ' + DOCUMENTO_MAX_MB + ' MB)'); return false; }
+    return true;
+  });
+
+  var botao = document.getElementById('btnAddPdfLocal');
+  var rotulo = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = 'Enviando…';
+
+  // um por vez, em fila
+  validos.reduce(function(fila, arquivo) {
+    return fila.then(function() {
+      var dados = new FormData();
+      dados.append('arquivo', arquivo);
+      dados.append('tipo', 'OUTRO');
+      if (currentSetor) dados.append('uepId', currentSetor);
+      return fetch(API_BASE + '/documentos', { method: 'POST', headers: cabecalhoAuth(), body: dados })
+        .then(function(res) { return res.ok ? res.json() : rejeitarComErroDaResposta(res); })
+        .then(function(doc) { UNIR_SELECAO.push({ origem: 'documento', id: Number(doc.id), nome: arquivo.name }); })
+        .catch(function(err) { problemas.push(arquivo.name + ' (' + mensagemDeErro(err) + ')'); });
+    });
+  }, Promise.resolve()).then(function() {
+    if (problemas.length) mostrarErroUniao('Não consegui adicionar: ' + problemas.join('; '));
+    renderOrdemUniao();
+    renderDocumentos(); // atualiza a lista (e marca os novos documentos na tabela)
+  }).then(function() {
+    botao.disabled = false;
+    botao.textContent = rotulo;
+  });
+}
+
+function renderOrdemUniao() {
+  var lista = document.getElementById('uniaoOrdem');
+  var botao = document.getElementById('btnUnirPdfs');
+  if (!UNIR_SELECAO.length) {
+    lista.innerHTML = '<div class="nf-row"><span style="color:var(--gray-text);">Nenhum documento selecionado.</span></div>';
+  } else {
+    lista.innerHTML = UNIR_SELECAO.map(function(item, i) {
+      var ultimo = i === UNIR_SELECAO.length - 1;
+      var setaOff = 'style="opacity:.3;pointer-events:none;"';
+      return '<div class="nf-row">' +
+          '<span><b>' + (i + 1) + '.</b> ' + escaparHtml(item.nome) + (item.detalhe ? ' <span class="meta">(' + escaparHtml(item.detalhe) + ')</span>' : '') + '</span>' +
+          '<span style="display:flex;gap:16px;align-items:center;flex:none;">' +
+            '<span class="link-ver" ' + (i === 0 ? setaOff : '') + ' onclick="moverNaUniao(' + i + ', -1)" title="Subir">↑</span>' +
+            '<span class="link-ver" ' + (ultimo ? setaOff : '') + ' onclick="moverNaUniao(' + i + ', 1)" title="Descer">↓</span>' +
+            '<span class="link-ver" style="color:var(--if-red);" onclick="removerDaUniao(' + i + ')" title="Tirar da junção">✕</span>' +
+          '</span>' +
+        '</div>';
+    }).join('');
+  }
+  botao.disabled = UNIR_SELECAO.length < 2;
+  botao.textContent = UNIR_SELECAO.length >= 2 ? 'Unir e baixar PDF (' + UNIR_SELECAO.length + ' arquivos)' : 'Unir e baixar PDF';
+}
+
+function moverNaUniao(i, delta) {
+  var j = i + delta;
+  if (j < 0 || j >= UNIR_SELECAO.length) return;
+  var tmp = UNIR_SELECAO[i]; UNIR_SELECAO[i] = UNIR_SELECAO[j]; UNIR_SELECAO[j] = tmp;
+  renderOrdemUniao();
+}
+
+function removerDaUniao(i) {
+  UNIR_SELECAO.splice(i, 1);
+  renderOrdemUniao();
+  renderTabelaUniao(); // desmarca o checkbox correspondente
+}
+
+/* Botão "Unir e baixar PDF": manda os ids na ordem escolhida e baixa o PDF unido pelo backend */
+function unirPdfsSelecionados() {
+  esconderErroUniao();
+  if (UNIR_SELECAO.length < 2) { mostrarErroUniao('Selecione pelo menos 2 PDFs para unir.'); return; }
+
+  var botao = document.getElementById('btnUnirPdfs');
+  botao.disabled = true;
+  botao.textContent = 'Unindo…';
+
+  var headers = cabecalhoAuth();
+  headers['Content-Type'] = 'application/json';
+  var itens = UNIR_SELECAO.map(function(item) {
+    if (item.origem === 'documento') return { origem: 'documento', id: item.id };
+    var r = { origem: 'relatorio', relatorio: item.relatorio };
+    if (item.uepId) r.uepId = item.uepId;
+    if (item.dataInicio) { r.dataInicio = item.dataInicio; r.dataFim = item.dataFim; }
+    return r;
+  });
+
+  // fetch direto (e não apiFetch): a resposta é um arquivo, não JSON
+  fetch(API_BASE + '/documentos/unir', { method: 'POST', headers: headers, body: JSON.stringify({ itens: itens }) })
+    .then(function(res) {
+      if (!res.ok) return rejeitarComErroDaResposta(res);
+      return res.blob().then(function(blob) {
+        if (!blob.size) throw new Error('O servidor devolveu um arquivo vazio.');
+        var nome = nomeArquivoDoHeader(res.headers.get('Content-Disposition')) ||
+                   ('uniao-documentos-' + dataLocalISO(new Date()) + '.pdf');
+        salvarArquivo(blob, nome);
+        mostrarToast('PDF unido gerado: ' + nome);
+      });
+    })
+    .catch(function(err) { mostrarErroUniao(mensagemDeErro(err)); })
+    .then(function() { renderOrdemUniao(); }); // restaura o texto e o estado do botão
+}
+
+
+/* =====================================================================
    9. CONTROLE DE ACESSO (aba exclusiva da Diretoria)
    Gerencia o array USERS: lista quem tem conta, permite trocar o perfil
    de cada um, remover acesso, e conceder acesso novo (inclusive o
@@ -1447,7 +2060,8 @@ function enterApp() {
   toggleTabsByRole();
   renderSetor();
   if (currentRole !== 'diretoria') renderEstoque();
-  if (currentRole === 'diretoria') renderControleAcesso();
+  if (currentRole === 'diretoria') { renderControleAcesso(); renderRelatorios(); }
+  if (currentRole === 'diretoria' || currentRole === 'professor') renderDocumentos();
   if (currentRole === 'professor') renderMinhaEquipe();
 
   document.getElementById('authFlow').classList.add('hidden');
@@ -1468,6 +2082,9 @@ function logout() {
   document.getElementById('app').classList.add('hidden');
   reveal(document.getElementById('authFlow'));
 
+  // documentos/seleção de PDFs são da conta que saiu — não podem aparecer para a próxima
+  DOCUMENTOS_CACHE = [];
+  UNIR_SELECAO = [];
   currentUser = null;
   currentRole = '';
   currentSetor = '';
