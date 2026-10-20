@@ -169,9 +169,9 @@
       <div class="tab op-only" id="tab-rebanho" onclick="go('rebanho', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg> Gestão do Rebanho</div>
       <div class="tab op-only" id="tab-estoque" onclick="go('estoque', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg> Estoque de Insumos</div>
       <!-- Notas Fiscais: visível para TODOS os perfis (sem classe de restrição) -->
-      <div class="tab" id="tab-notas" onclick="go('notas', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
+      <div class="tab" id="tab-notas" onclick="go('notas', event); renderDocumentos();"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
       <!-- .admin-only = visível SOMENTE para a Diretoria -->
-      <div class="tab admin-only" id="tab-relatorios" onclick="go('relatorios', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h6"/></svg> Relatórios (PDF)</div>
+      <div class="tab admin-only" id="tab-relatorios" onclick="go('relatorios', event); renderDocumentos();"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h6"/></svg> Relatórios</div>
       <div class="tab admin-only" id="tab-acessos" onclick="go('acessos', event)"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 10-6.32"/><path d="M17 14v3M17 21v.01"/><circle cx="17" cy="17.5" r="4"/></svg> Controle de Acesso</div>
       <!-- .professor-only = visível SOMENTE para o Professor -->
       <div class="tab professor-only" id="tab-equipe" onclick="go('equipe', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Minha Equipe</div>
@@ -307,38 +307,96 @@
     </table>
   </div>
 
-  <!-- NOTAS FISCAIS (somente Diretoria) -->
-  <!-- BACKEND: GET /api/notas-fiscais | POST /api/notas-fiscais -->
+  <!-- NOTAS FISCAIS / DOCUMENTOS (Sprint 13)
+       Professor: envia PDFs (notas fiscais e outros) para a Diretoria e vê os próprios envios.
+       Diretoria: vê tudo o que foi enviado (e une os PDFs na aba Relatórios).
+       BACKEND: POST/GET/DELETE /api/documentos — contrato em js/script.js, seção 8E. -->
   <div class="screen" id="notas">
-    <div class="page-head"><div><h1>Notas Fiscais</h1><p>Notas vinculadas a compras de ração e entradas de animais</p></div></div>
-    <div class="counters" style="margin-bottom:22px;">
-      <div class="counter"><div class="n">3</div><div class="l">Total de notas</div></div>
-      <div class="counter sub"><div class="n">1</div><div class="l">Vinculadas a ração</div></div>
-      <div class="counter sub"><div class="n">1</div><div class="l">Vinculadas a animais</div></div>
-      <div class="counter sub"><div class="n">1</div><div class="l">Insumos veterinários</div></div>
+    <div class="page-head"><div><h1>Notas Fiscais</h1><p id="notasSubtitulo">Documentos enviados à Diretoria</p></div></div>
+
+    <div class="alert-banner warn hidden" id="documentosErro">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div><strong id="documentosErroTitulo">Algo deu errado</strong><span id="documentosErroTexto">—</span></div>
     </div>
-    <div class="nf-list">
-      <div class="nf-row"><span>NF-e 000482 · Compra de ração — Cooperativa Agro Sul</span><span class="meta">12/08/2026</span></div>
-      <div class="nf-row"><span>NF-e 000411 · Entrada de animais — Fazenda Boa Vista</span><span class="meta">03/08/2026</span></div>
-      <div class="nf-row"><span>NF-e 000397 · Compra de insumos veterinários</span><span class="meta">28/07/2026</span></div>
+
+    <!-- Professor e Diretoria enviam; os demais perfis não veem este bloco (ver renderDocumentos) -->
+    <div id="blocoEnvioDoc">
+      <div class="section-label" id="envioTitulo">Enviar para a Diretoria</div>
+      <form class="toolbar" onsubmit="enviarDocumento(event)">
+        <input type="file" id="docArquivo" accept="application/pdf,.pdf" class="fake-select" style="flex:1;min-width:220px;" aria-label="Arquivo PDF" required>
+        <select class="fake-select" id="docTipo" aria-label="Tipo do documento">
+          <option value="NOTA_FISCAL">Nota fiscal</option>
+          <option value="OUTRO">Outro PDF</option>
+        </select>
+        <input type="text" id="docDescricao" class="fake-select" maxlength="120" placeholder="Descrição (opcional) — ex.: NF ração outubro" style="flex:2;min-width:220px;" aria-label="Descrição">
+        <button type="submit" class="btn" id="btnEnviarDoc">Enviar</button>
+      </form>
+      <p class="texto-apoio" style="margin-top:-8px;">Somente arquivos PDF, de até 10 MB.</p>
     </div>
-    <div class="nf-empty" onclick="alert('Ação: abrir seletor de arquivo para anexar NF-e')"><div class="big">+ Anexar nota fiscal</div><div>vincular NF a uma compra de ração ou entrada de animal</div></div>
+
+    <div class="section-label" id="documentosTitulo">Documentos</div>
+    <div class="nf-list" id="listaDocumentos"><div class="nf-row"><span>Carregando…</span></div></div>
   </div>
 
-  <!-- RELATÓRIOS (somente Diretoria) -->
-  <!-- BACKEND: POST /api/relatorios/{tipo}/gerar -> retorna PDF -->
+  <!-- RELATÓRIOS (somente Diretoria) — Sprint 13 -->
+  <!-- BACKEND: POST /api/relatorios/:tipo/gerar -> arquivo PDF (contrato completo em
+       js/script.js, seção 8D). Os cartões são desenhados por renderRelatorios() a partir da
+       lista RELATORIOS_TIPOS, então para criar um relatório novo basta incluir um item lá. -->
   <div class="screen" id="relatorios">
-    <div class="page-head"><div><h1>Relatórios</h1><p>Gere relatórios em PDF a partir dos dados do setor</p></div></div>
-    <div class="report-grid">
-      <div class="report-card"><div class="r-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><h3>Censo geral</h3><p>Distribuição por categoria, raça e disponibilidade.</p><button class="btn" onclick="alert('Ação: gerar PDF — Censo geral')">Gerar PDF</button></div>
-      <div class="report-card"><div class="r-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><h3>Status reprodutivo</h3><p>Fase reprodutiva de cada animal, agrupado por categoria.</p><button class="btn" onclick="alert('Ação: gerar PDF — Status reprodutivo')">Gerar PDF</button></div>
-      <div class="report-card"><div class="r-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg></div><h3>Movimentação de estoque</h3><p>Entradas e saídas de ração no período.</p><button class="btn" onclick="alert('Ação: gerar PDF — Movimentação de estoque')">Gerar PDF</button></div>
+    <div class="page-head"><div><h1>Relatórios</h1><p>Exporte os dados das UEPs em PDF e una os documentos enviados pelos professores</p></div></div>
+
+    <div class="alert-banner warn hidden" id="relatoriosErro">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div><strong>Não foi possível gerar o relatório</strong><span id="relatoriosErroTexto">—</span></div>
+    </div>
+
+    <div class="section-label">Filtros</div>
+    <form class="toolbar" onsubmit="return false;">
+      <select class="fake-select" id="relSetor" title="Setor (UEP)"><option value="">Todos os setores</option></select>
+      <select class="fake-select" id="relPeriodo" onchange="atualizarPeriodoPersonalizado()" title="Período (vale para relatórios de movimentação)">
+        <option value="30">Últimos 30 dias</option>
+        <option value="90">Últimos 90 dias</option>
+        <option value="365">Últimos 12 meses</option>
+        <option value="personalizado">Personalizado</option>
+      </select>
+      <span id="relPeriodoPersonalizado" style="display:none;gap:8px;align-items:center;">
+        <input type="date" class="fake-select" id="relDataInicio" aria-label="Data inicial" style="min-width:0;">
+        <span style="color:var(--gray-text);font-size:13px;">até</span>
+        <input type="date" class="fake-select" id="relDataFim" aria-label="Data final" style="min-width:0;">
+      </span>
+    </form>
+
+    <div class="section-label">Relatórios disponíveis</div>
+    <div class="report-grid" id="relatoriosGrid"><p style="color:var(--gray-text);">Carregando…</p></div>
+
+    <!-- UNIR PDFs: a Diretoria junta os documentos que os professores enviaram (e PDFs do próprio computador) -->
+    <div class="section-label" style="margin-top:30px;">Unir PDFs</div>
+    <p class="texto-apoio" style="margin:-2px 0 12px;">Una notas fiscais, PDFs que você adicionar e relatórios gerados na hora. Marque na ordem em que devem aparecer no arquivo final; o PDF unido é gerado pelo servidor e baixado no seu computador.</p>
+    <div class="alert-banner warn hidden" id="uniaoErro">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div><strong>Atenção</strong><span id="uniaoErroTexto">—</span></div>
     </div>
     <form class="toolbar" onsubmit="return false;">
-      <select class="fake-select"><option>Últimos 30 dias</option><option>Últimos 90 dias</option><option>Personalizado</option></select>
-      <select class="fake-select"><option>Todos os setores</option><option>Somente setor atual</option></select>
-      <button class="btn" style="margin-left:auto;" onclick="alert('Ação: gerar PDF personalizado')">Gerar relatório personalizado</button>
+      <select class="fake-select" id="uniaoFiltroTipo" onchange="renderTabelaUniao()" aria-label="Filtrar por tipo">
+        <option value="">Todos os tipos</option>
+        <option value="NOTA_FISCAL">Notas fiscais</option>
+        <option value="OUTRO">Outros PDFs</option>
+      </select>
+      <button type="button" class="btn outline" onclick="document.getElementById('uniaoArquivosLocais').click()" id="btnAddPdfLocal">+ Adicionar PDF do computador</button>
+      <input type="file" id="uniaoArquivosLocais" accept="application/pdf,.pdf" multiple style="display:none;" onchange="adicionarPdfsLocais(this)">
     </form>
+    <div class="section-label">Incluir relatório gerado agora <span style="text-transform:none;letter-spacing:0;font-weight:400;">(usa o setor e o período dos filtros acima)</span></div>
+    <div id="uniaoRelatorios" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;"></div>
+
+    <div class="section-label">Documentos enviados e adicionados</div>
+    <table style="margin-bottom:18px;">
+      <thead><tr><th style="width:44px;"></th><th>Documento</th><th>Enviado por</th><th>UEP</th><th>Data</th><th></th></tr></thead>
+      <tbody id="tabelaUniao"><tr><td colspan="6">Carregando…</td></tr></tbody>
+    </table>
+
+    <div class="section-label">Ordem da junção</div>
+    <div class="nf-list" id="uniaoOrdem"><div class="nf-row"><span style="color:var(--gray-text);">Nenhum documento selecionado.</span></div></div>
+    <button type="button" class="btn" id="btnUnirPdfs" onclick="unirPdfsSelecionados()" disabled style="padding:13px 26px;font-size:14.5px;">Unir e baixar PDF</button>
   </div>
 
   <!-- CONTROLE DE ACESSO (somente Diretoria) — só gerencia contas de Professor.
