@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:26-alpine
 
 # Atualiza pacotes do SO para corrigir vulnerabilidades criticas conhecidas
 # antes de publicar a imagem.
