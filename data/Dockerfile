@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Atualiza pacotes do SO para corrigir vulnerabilidades criticas conhecidas
 # antes de publicar a imagem.
