@@ -9,9 +9,12 @@ const app = express();
 const PORT = process.env.BACKEND_PORT || 3000;
 
 // Ajuste do CORS para o seu frontend
+const corsOrigins = (
+  process.env.CORS_ORIGINS || "http://localhost:8080,http://127.0.0.1:5500"
+).split(",");
 app.use(
   cors({
-    origin: ["http://127.0.0.1:5500", "http://localhost:8080"], // Coloque a porta do seu HTML
+    origin: corsOrigins,
     credentials: true,
   })
 );
