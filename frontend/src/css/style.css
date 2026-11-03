@@ -171,7 +171,7 @@ tbody td{padding:13px 16px;font-size:14px;border-top:1px solid var(--gray-border
 .report-card h3{margin:0;font-size:15px;color:#1c1c1c;}
 .report-card p{margin:0;font-size:12.5px;color:var(--gray-text);flex:1;}
 .report-card .btn{align-self:flex-start;padding:8px 16px;font-size:12.5px;}
-.report-card .report-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;}
+.report-card .report-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:6px;}
 .report-card .report-actions .btn{align-self:auto;justify-content:center;padding:13px 18px;font-size:14.5px;border-radius:28px;width:100%;transition:transform .12s ease,box-shadow .12s ease,background .12s ease;}
 .report-card .report-actions .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(47,158,65,.25);}
 .report-card .report-actions .btn:active{transform:translateY(0);box-shadow:none;}
@@ -180,6 +180,8 @@ tbody td{padding:13px 16px;font-size:14px;border-top:1px solid var(--gray-border
 .report-card .btn.outline{padding:11px 16px;}
 .report-card .btn:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none;}
 @media (max-width:480px){.report-card .report-actions{grid-template-columns:1fr;}}
+/* texto pequeno de apoio (dicas abaixo de formulários e seções) */
+.texto-apoio{font-size:12.5px;color:var(--gray-text);margin:0 0 14px;}
 .report-card .r-nota{font-size:11.5px;color:var(--gray-text);margin:-2px 0 2px;flex:0;}
 
 /* Autenticação */
@@ -278,3 +280,59 @@ tbody td{padding:13px 16px;font-size:14px;border-top:1px solid var(--gray-border
 .toast-sucesso.toast-saindo{animation:toast-saida .3s ease forwards;}
 @keyframes toast-entrada{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 @keyframes toast-saida{to{opacity:0;transform:translateY(10px);}}
+
+/* ---------- Acessibilidade (Sprint 14): foco visível para quem navega pelo teclado ---------- */
+:focus-visible{outline:3px solid var(--primary-dark);outline-offset:2px;}
+
+/* ---------- Calendário (Sprint 14) ---------- */
+.cal-controles{background:#fff;border:1px solid var(--gray-border);border-radius:12px;padding:14px 16px;margin-bottom:18px;display:flex;flex-direction:column;gap:12px;}
+.cal-controles-linha{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;}
+.cal-controles-rodape{border-top:1px solid var(--gray-border);padding-top:10px;}
+.cal-filtros{display:flex;gap:10px;flex-wrap:wrap;margin:0;}
+.cal-ano-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.cal-ano-nav h2{margin:0;font-size:24px;min-width:70px;text-align:center;color:#1c1c1c;}
+.cal-legenda{list-style:none;display:flex;gap:6px 18px;flex-wrap:wrap;padding:0;margin:0;font-size:13px;color:#1c1c1c;}
+.cal-legenda li{display:flex;align-items:center;gap:7px;}
+.cal-legenda i{width:11px;height:11px;border-radius:3px;display:inline-block;}
+.cal-topo{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:stretch;margin-bottom:18px;}
+.cal-topo .cal-controles{margin-bottom:0;justify-content:center;gap:22px;}
+.cal-ano{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;}
+.cal-mes{background:#fff;border:1px solid var(--gray-border);border-radius:12px;padding:16px 16px 18px;}
+.cal-mes.atual{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary);}
+.cal-mes-topo{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.cal-mes h3{margin:0;font-size:17px;color:#1c1c1c;}
+.cal-mes-total{font-size:12px;font-weight:600;color:#5b6470;}
+.cal-semana,.cal-dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;}
+.cal-semana span{text-align:center;font-size:11.5px;font-weight:700;color:#5b6470;padding-bottom:4px;text-transform:uppercase;}
+.cal-dia{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:3px;height:58px;min-width:0;padding:5px 4px 4px;border:1px solid var(--gray-border);border-radius:8px;background:#fafbfa;font:inherit;font-size:13px;color:#1c1c1c;cursor:pointer;text-align:left;overflow:hidden;}
+.cal-dia:hover{background:var(--primary-pastel);border-color:var(--primary);}
+.cal-dia .cal-num{font-weight:600;line-height:1;padding-left:2px;}
+.cal-dia.tem{background:#fff;}
+.cal-dia.hoje{border:2px solid var(--primary-dark);padding:4px 3px 3px;}
+.cal-dia.hoje .cal-num{font-weight:800;color:var(--primary-dark);}
+.cal-dia.sel{background:var(--primary-dark);border-color:var(--primary-dark);color:#fff;}
+.cal-dia.sel .cal-num{color:#fff;}
+.cal-chips{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.cal-chip{display:block;font-style:normal;font-size:10px;font-weight:700;line-height:1.35;padding:0 4px;border-radius:3px;border-left:3px solid;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-chip::after{content:attr(data-t);}
+.cal-chip.mais{background:none !important;border-left:none;color:#5b6470;padding-left:2px;}
+.cal-dia.sel .cal-chip.mais{color:#fff;}
+.cal-lateral{background:#fff;border:1px solid var(--gray-border);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;min-height:0;}
+.cal-lateral-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+.cal-lateral-topo h3{margin:0;font-size:15px;color:#1c1c1c;}
+.cal-lateral #calDiaLista{overflow-y:auto;max-height:150px;flex:1;}
+.cal-item{border-top:1px solid var(--gray-border);padding:12px 0;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:#1c1c1c;}
+.cal-item:first-child{border-top:none;padding-top:0;}
+.cal-item .meta{font-size:12px;color:#5b6470;}
+.cal-item .acoes{display:flex;gap:16px;}
+.cal-link{background:none;border:none;padding:4px 2px;font:inherit;font-size:13px;font-weight:600;color:var(--primary-dark);cursor:pointer;}
+.cal-link.perigo{color:#b3171b;}
+.cal-tag{align-self:flex-start;display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700;}
+@media (max-width:1100px){.cal-ano{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:900px){.cal-topo{grid-template-columns:1fr;}}
+@media (max-width:640px){.cal-ano{grid-template-columns:minmax(0,1fr);}.cal-dia{height:48px;}.cal-chip{height:5px;padding:0;border-left-width:0;border-radius:3px;}.cal-chip::after{content:none;}.cal-chip.mais{height:auto;}.cal-chip.mais::after{content:attr(data-t);}}
+/* Calendário: verde mais escuro nos botões para contraste mínimo (4,5:1) com o texto */
+#calendario .btn{background:var(--primary-dark);}
+#calendario .btn:hover{background:#17601f;}
+#calendario .btn.outline{background:#fff;color:var(--primary-dark);border-color:var(--primary-dark);}
+#calendario .btn.outline:hover{background:var(--primary-pastel);}
