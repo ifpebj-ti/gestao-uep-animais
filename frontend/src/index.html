@@ -168,6 +168,9 @@
       <div class="tab op-only active" id="tab-painel" onclick="go('painel', event)"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg> Painel</div>
       <div class="tab op-only" id="tab-rebanho" onclick="go('rebanho', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg> Gestão do Rebanho</div>
       <div class="tab op-only" id="tab-estoque" onclick="go('estoque', event)"><svg class="icon" viewBox="0 0 24 24"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/></svg> Estoque de Insumos</div>
+      <!-- Calendário (Sprint 14): atividades dos animais da UEP. Mesma regra das outras abas operacionais
+           (.op-only = todos os perfis, menos a Diretoria). Recarrega a cada visita para mostrar o que os outros marcaram. -->
+      <div class="tab op-only" id="tab-calendario" onclick="go('calendario', event); renderCalendario();"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Calendário</div>
       <!-- Notas Fiscais: visível para TODOS os perfis (sem classe de restrição) -->
       <div class="tab" id="tab-notas" onclick="go('notas', event); renderDocumentos();"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Notas Fiscais</div>
       <!-- .admin-only = visível SOMENTE para a Diretoria -->
@@ -305,6 +308,59 @@
       <thead><tr><th>Data</th><th>Tipo</th><th>Insumo</th><th>Quantidade</th><th>Responsável</th><th>Observação</th></tr></thead>
       <tbody id="tabelaEstoque"><tr><td colspan="6">Carregando…</td></tr></tbody>
     </table>
+  </div>
+
+  <!-- CALENDÁRIO (Sprint 14) — atividades dos animais da UEP, ano inteiro
+       BACKEND: GET/POST/PATCH/DELETE /api/ueps/:uepId/atividades — contrato em js/script.js, seção 8F. -->
+  <div class="screen" id="calendario">
+    <div class="page-head"><div><h1>Calendário</h1><p>Marque e acompanhe gestações, vermífugos, vacinas e aulas de manejo dos animais da UEP</p></div></div>
+
+    <div class="alert-banner warn hidden" id="calErro" role="alert">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div><strong>Atenção</strong><span id="calErroTexto">—</span></div>
+    </div>
+
+    <!-- Barra de controles: tudo que age sobre o calendário fica aqui, acima dos meses -->
+    <div class="cal-topo">
+    <div class="cal-controles">
+      <div class="cal-controles-linha">
+        <div class="cal-ano-nav">
+          <button type="button" class="btn outline" style="padding:6px 14px;" aria-label="Ano anterior" onclick="calMudarAno(-1)">‹</button>
+          <h2 id="calAnoTitulo" aria-live="polite">2026</h2>
+          <button type="button" class="btn outline" style="padding:6px 14px;" aria-label="Próximo ano" onclick="calMudarAno(1)">›</button>
+          <button type="button" class="btn outline" style="padding:6px 16px;" onclick="calIrParaHoje()">Hoje</button>
+        </div>
+        <form class="cal-filtros" onsubmit="return false;" aria-label="Filtros do calendário">
+          <select class="fake-select" id="calFiltroTipo" aria-label="Filtrar por tipo de atividade" onchange="calAplicarFiltros()">
+            <option value="">Todos os tipos</option>
+            <option value="GESTACAO">Gestação</option>
+            <option value="VERMIFUGO">Vermífugo</option>
+            <option value="VACINA">Vacina</option>
+            <option value="AULA_MANEJO">Aula de manejo</option>
+            <option value="OUTRO">Outro</option>
+          </select>
+          <select class="fake-select" id="calFiltroAnimal" aria-label="Filtrar por animal" onchange="calAplicarFiltros()">
+            <option value="">Todos os animais</option>
+          </select>
+        </form>
+        <button type="button" class="btn" onclick="abrirModalAtividade()">+ Nova atividade</button>
+      </div>
+      <div class="cal-controles-linha cal-controles-rodape">
+        <ul class="cal-legenda" id="calLegenda" aria-label="Legenda dos tipos de atividade"></ul>
+        <p class="texto-apoio" id="calStatus" role="status" style="margin:0;"></p>
+      </div>
+    </div>
+
+    <aside class="cal-lateral" aria-labelledby="calDiaTitulo">
+      <div class="cal-lateral-topo">
+        <h3 id="calDiaTitulo">Selecione um dia</h3>
+        <button type="button" class="btn" id="calBtnNovoNoDia" style="padding:7px 14px;font-size:12.5px;flex-shrink:0;" onclick="abrirModalAtividade(null, CAL_DIA_SELECIONADO)">+ Neste dia</button>
+      </div>
+      <div id="calDiaLista" aria-live="polite"></div>
+    </aside>
+    </div>
+
+    <div class="cal-ano" id="calAno"></div>
   </div>
 
   <!-- NOTAS FISCAIS / DOCUMENTOS (Sprint 13)
@@ -453,6 +509,50 @@
   </div>
 
 </main>
+</div>
+
+<!-- MODAL: ATIVIDADE DO CALENDÁRIO (Sprint 14) — criar / editar / remover -->
+<div id="modalAtividade" role="dialog" aria-modal="true" aria-labelledby="modalAtividadeTitulo" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #c8ead0;box-shadow:0 20px 50px rgba(0,0,0,.25);border-radius:12px;padding:2rem;width:min(480px,94vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <h2 id="modalAtividadeTitulo" style="margin:0 0 1.25rem;font-size:1.1rem;color:#1c1c1c;">Nova atividade</h2>
+    <div class="auth-error hidden" id="atividadeError" role="alert" style="max-width:none;"></div>
+    <form id="formAtividade" onsubmit="event.preventDefault(); salvarAtividade();">
+      <div style="display:grid;gap:.9rem;">
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">TIPO DE ATIVIDADE
+          <select id="atvTipo" required onchange="atualizarCamposAtividade()" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
+            <option value="">Selecione o tipo</option>
+            <option value="GESTACAO">Gestação</option>
+            <option value="VERMIFUGO">Vermífugo</option>
+            <option value="VACINA">Vacina</option>
+            <option value="AULA_MANEJO">Aula de manejo</option>
+            <option value="OUTRO">Outro</option>
+          </select>
+        </label>
+        <p id="atvDica" style="margin:-.4rem 0 0;font-size:.8rem;color:#4f6b57;"></p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;">
+          <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">DATA
+            <input id="atvData" type="date" required style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
+          </label>
+          <label id="atvHoraWrap" style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">HORÁRIO (opcional)
+            <input id="atvHora" type="time" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;">
+          </label>
+        </div>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;"><span id="atvAnimalRotulo">ANIMAL</span>
+          <select id="atvAnimal" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;"><option value="">Nenhum animal específico</option></select>
+        </label>
+        <label style="font-size:.75rem;font-weight:600;letter-spacing:.06em;color:#4f6b57;">OBSERVAÇÃO (opcional)
+          <textarea id="atvObs" rows="3" maxlength="300" placeholder="Ex.: Vacina contra aftosa, 2ª dose" style="display:block;width:100%;margin-top:.35rem;padding:.55rem .75rem;border-radius:7px;border:1px solid #c8ead0;background:#f3faf4;color:#1c1c1c;font-size:.95rem;resize:vertical;"></textarea>
+        </label>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1.5rem;align-items:center;">
+        <button type="button" id="btnRemoverAtividade" onclick="removerAtividade(calEditandoId)" style="display:none;padding:.55rem 1rem;border-radius:7px;border:1px solid var(--if-red);background:#fff;color:var(--if-red);cursor:pointer;font-weight:600;">Remover</button>
+        <div style="display:flex;gap:.75rem;margin-left:auto;">
+          <button type="button" onclick="fecharModalAtividade(true)" style="padding:.55rem 1.2rem;border-radius:7px;border:1px solid #c8ead0;background:#fff;color:#3a4a3f;cursor:pointer;">Cancelar</button>
+          <button type="submit" id="btnSalvarAtividade" style="padding:.55rem 1.4rem;border-radius:7px;border:none;background:#1f7a30;color:#fff;font-weight:600;cursor:pointer;">Salvar</button>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
 <script src="js/config.js"></script>
