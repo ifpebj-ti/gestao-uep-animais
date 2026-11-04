@@ -103,11 +103,11 @@ jobs:
           npm install
           npm test
 
-      - name: Testes do servico de dados
+      - name: Testes do servico de dados (cobertura minima 70%)
         working-directory: ./data
         run: |
           pip install -r requirements-dev.txt --break-system-packages
-          pytest test/ -v
+          pytest test/ -v --cov=scripts --cov-report=term-missing --cov-fail-under=70
 
   # 4. AUTOMACAO DE MIGRACOES — roda as migrations reais contra um Postgres
   #    de servico e valida com o smoke test ja existente (auth, RBAC, UEPs,
