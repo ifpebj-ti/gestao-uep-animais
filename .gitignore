@@ -20,5 +20,6 @@ __pycache__/
 
 loadtest/resultado*.json
 
-# Cobertura de testes (c8)
+# Cobertura de testes (c8 e pytest-cov)
 coverage/
+.coverage
