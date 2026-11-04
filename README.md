@@ -96,7 +96,11 @@ Para usar uma versão específica, defina `IMAGE_TAG` no `.env` (ex.: `IMAGE_TAG
 cd backend
 npm install
 npx eslint src
-npm test
+npm test               # unitários (integração é pulada sem banco)
+
+# Backend com Postgres (docker compose up db): unitários + integração + cobertura
+DB_HOST=localhost DB_PASSWORD=changeme npm run migrate
+DB_HOST=localhost DB_PASSWORD=changeme npm run test:coverage   # falha abaixo de 70%
 
 # Dados
 cd data
@@ -118,7 +122,7 @@ O workflow [`ci-cd.yml`](./.github/workflows/ci-cd.yml) roda em todo push e pull
 1. **Lint** — ESLint (backend), flake8 (dados), HTMLHint e Stylelint (frontend)
 2. **Build** — validação de sintaxe e compilação de cada serviço
 3. **Testes** — testes automatizados do backend e do serviço de dados
-4. **Migrações** — executa as migrations contra um PostgreSQL real, checa idempotência e roda smoke test da API
+4. **Migrações** — executa as migrations contra um PostgreSQL real, checa idempotência, roda o smoke test da API e os testes de integração com cobertura mínima de 70% (relatório publicado como artefato `cobertura-backend`)
 5. **Build da imagem** — imagem Docker de cada serviço
 6. **Análise da imagem** — Trivy bloqueia o pipeline se houver vulnerabilidade crítica
 7. **Publicação** — imagens enviadas ao GHCR (`ghcr.io/ifpebj-ti/gestao-uep-animais/<serviço>`)

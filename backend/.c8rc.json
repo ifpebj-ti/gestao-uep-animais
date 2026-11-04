@@ -1,0 +1,13 @@
+{
+  "all": true,
+  "src": ["src"],
+  "include": ["src/**/*.js"],
+  "exclude": ["src/index.js", "src/db/migrate.js"],
+  "reporter": ["text-summary", "text", "lcov"],
+  "report-dir": "coverage",
+  "check-coverage": true,
+  "lines": 70,
+  "statements": 70,
+  "functions": 70,
+  "branches": 60
+}

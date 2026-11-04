@@ -31,6 +31,8 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 11: regra de alerta de nível crítico de estoque (CRITICO = saldo no mínimo ou abaixo; ATENCAO = acaba em menos de 7 dias). Insumos saem com `nivel_alerta` e `previsao_dias`; novos `GET /api/ueps/:uepId/estoque/alertas` e `GET /api/estoque/alertas` (painel com as UEPs do usuário); compras passa a usar a mesma regra
 - Sprint 13: módulo de relatórios do gestor — `POST /api/relatorios/:tipo/gerar` em PDF ou Excel (.xlsx) para censo geral, status reprodutivo, movimentação de estoque (por período) e necessidades de compra; só Diretoria
 - Sprint 13: documentos (notas fiscais e outros PDFs) — upload até 10 MB guardado no Postgres, listagem, download, remoção e `POST /api/documentos/unir` (junta documentos e relatórios gerados na hora em um PDF), no contrato que o front da Sprint 13 já usa
+- Sprint 14: calendário de atividades dos animais — `GET/POST /api/ueps/:uepId/atividades` e `PATCH/DELETE .../atividades/:id` (gestação, vermífugo, vacina, aula de manejo, outro), no contrato que o front já usa; qualquer perfil da UEP registra, Professor ou autor altera
+- Sprint 14: testes de integração da API contra Postgres real (`backend/test/integration`) e `npm run test:coverage` (c8) com mínimo de 70% — hoje ~97% de linhas; o CI roda no job de migrações e publica o relatório como artefato
 
 - Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 ## [0.3.0] - 2026-09-30
