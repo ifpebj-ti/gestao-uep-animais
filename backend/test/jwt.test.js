@@ -17,3 +17,19 @@ test("signToken gera um token que verifyToken consegue decodificar", () => {
 test("verifyToken rejeita token invalido", () => {
   assert.throws(() => verifyToken("token.invalido.aqui"));
 });
+
+test("resolverSegredo: em producao exige JWT_SECRET e recusa o valor de exemplo", async () => {
+  const { resolverSegredo, SEGREDO_PADRAO } = await import("../src/utils/jwt.js");
+  assert.throws(() => resolverSegredo({ NODE_ENV: "production" }), /JWT_SECRET/);
+  assert.throws(
+    () => resolverSegredo({ NODE_ENV: "production", JWT_SECRET: SEGREDO_PADRAO }),
+    /JWT_SECRET/
+  );
+  assert.equal(resolverSegredo({ NODE_ENV: "production", JWT_SECRET: "abc123forte" }), "abc123forte");
+});
+
+test("resolverSegredo: fora de producao usa o padrao quando nao ha JWT_SECRET", async () => {
+  const { resolverSegredo, SEGREDO_PADRAO } = await import("../src/utils/jwt.js");
+  assert.equal(resolverSegredo({}), SEGREDO_PADRAO);
+  assert.equal(resolverSegredo({ NODE_ENV: "development", JWT_SECRET: "x" }), "x");
+});

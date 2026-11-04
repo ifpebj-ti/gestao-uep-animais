@@ -62,6 +62,15 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
   return { status: res.status, dados };
 }
 
+async function postCru(caminho, corpoTexto) {
+  const res = await fetch(BASE + caminho, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: corpoTexto,
+  });
+  return { status: res.status, dados: await res.json().catch(() => null) };
+}
+
 (async () => {
   console.log(`\nSmoke test — Sprints 3, 4, 5, 10, 12 + hierarquia de acesso`);
   console.log(`API: ${BASE}\n`);
@@ -100,6 +109,34 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
       metodo: "POST",
       body: { email: ADMIN_EMAIL, senha: "senha-errada" },
       esperado: 401,
+    });
+  });
+
+  await checa(3, "Login aceita o e-mail com maiusculas/espacos (normalizado)", async () => {
+    const { dados } = await api("/auth/login", {
+      metodo: "POST",
+      body: { email: `  ${ADMIN_EMAIL.toUpperCase()} `, senha: ADMIN_PASSWORD },
+      esperado: 200,
+    });
+    assert(dados.user?.email === ADMIN_EMAIL, `email esperado ${ADMIN_EMAIL}, veio ${dados.user?.email}`);
+  });
+
+  await checa(3, "JSON malformado no corpo devolve 400 (e nao 500)", async () => {
+    const { status, dados } = await postCru("/auth/login", "{email: sem aspas");
+    assert(status === 400, `esperado 400, veio ${status}`);
+    assert(dados && typeof dados.error === "string", "resposta sem { error }");
+  });
+
+  await checa(3, "GET /api/health responde sem token", async () => {
+    const { dados } = await api("/health", { esperado: 200 });
+    assert(dados.status === "ok", `status esperado ok, veio ${JSON.stringify(dados)}`);
+  });
+
+  await checa(3, "POST /auth/register exige senha com 6+ caracteres (400)", async () => {
+    await api("/auth/register", {
+      metodo: "POST",
+      body: { nome: "Senha Curta", email: `curta.${Date.now()}@teste.com`, senha: "123", role: "ALUNO" },
+      esperado: 400,
     });
   });
 
@@ -804,6 +841,8 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
     for (const p of [profA, profB]) {
       if (p) await api(`/users/${p.id}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
     }
+    // Token de uma conta removida deixa de valer na hora (nao espera expirar)
+    if (tokenProfA) await api("/users/me", { token: tokenProfA, esperado: 401 });
     // O ALUNO do autocadastro (alunoId) fica no banco: pela hierarquia nova a
     // Diretoria so remove Professores e ele nao tem professor responsavel.
     // Cada execucao usa um e-mail unico, entao isso nao quebra rodadas seguintes.

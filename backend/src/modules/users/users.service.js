@@ -10,6 +10,7 @@ import {
 } from "./users.policy.js";
 
 const SALT_ROUNDS = 10;
+export const SENHA_MINIMA = 6;
 
 function assertValidRole(role) {
   if (!ALL_ROLES.includes(role)) {
@@ -72,6 +73,9 @@ export const usersService = {
   async createAccount({ nome, email, senha, role, ativo = true, uepId = null, professorId = null }) {
     if (!nome || !email || !senha) {
       throw ApiError.badRequest("nome, email e senha são obrigatórios");
+    }
+    if (typeof senha !== "string" || senha.length < SENHA_MINIMA) {
+      throw ApiError.badRequest(`A senha deve ter ao menos ${SENHA_MINIMA} caracteres`);
     }
     assertValidRole(role);
 
@@ -218,8 +222,8 @@ export const usersService = {
 
   async changePassword(actor, id, novaSenha) {
     const target = await carregarNoEscopo(actor, id);
-    if (!novaSenha || novaSenha.length < 6) {
-      throw ApiError.badRequest("A nova senha deve ter ao menos 6 caracteres");
+    if (typeof novaSenha !== "string" || novaSenha.length < SENHA_MINIMA) {
+      throw ApiError.badRequest(`A nova senha deve ter ao menos ${SENHA_MINIMA} caracteres`);
     }
     const passwordHash = await bcrypt.hash(novaSenha, SALT_ROUNDS);
     await usersRepository.updatePassword(target.id, passwordHash);

@@ -69,6 +69,16 @@ export const usersRepository = {
     return comUeps;
   },
 
+  /* Dados mínimos para o middleware de autenticação conferir, a cada
+     requisição, se a conta do token ainda existe e está ativa. */
+  async findAuthById(id) {
+    const { rows } = await query(
+      `SELECT id, email, role, ativo, uep_id FROM users WHERE id = $1`,
+      [id]
+    );
+    return rows[0] ?? null;
+  },
+
   async findByEmail(email) {
     const { rows } = await query(
       `SELECT id, nome, email, password_hash, google_id, role, ativo, uep_id, professor_id

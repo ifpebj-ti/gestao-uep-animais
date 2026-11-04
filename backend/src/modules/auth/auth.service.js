@@ -27,11 +27,13 @@ const googleClient = process.env.GOOGLE_CLIENT_ID
 
 export const authService = {
   async login({ email, senha }) {
-    if (!email || !senha) {
+    if (!email || !senha || typeof email !== "string" || typeof senha !== "string") {
       throw ApiError.badRequest("email e senha são obrigatórios");
     }
 
-    const user = await usersRepository.findByEmail(email);
+    // As contas são gravadas com e-mail em minúsculas (usersService.createAccount);
+    // sem normalizar aqui, "Admin@ifpe.edu.br" não achava a conta.
+    const user = await usersRepository.findByEmail(email.trim().toLowerCase());
     if (!user || !user.ativo) {
       throw ApiError.unauthorized("Credenciais inválidas");
     }
