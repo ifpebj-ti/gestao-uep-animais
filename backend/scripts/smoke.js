@@ -62,6 +62,28 @@ async function api(caminho, { metodo = "GET", token, body, esperado } = {}) {
   return { status: res.status, dados };
 }
 
+// Requisição que devolve arquivo (PDF/Excel): status, headers e Buffer.
+async function baixar(caminho, { metodo = "POST", token, body } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(BASE + caminho, { method: metodo, headers, body: body ? JSON.stringify(body) : undefined });
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return { status: res.status, headers: res.headers, buffer };
+}
+
+// Upload multipart de um PDF em /documentos (Sprint 13).
+async function enviarPdf(token, buffer, campos = {}, nome = "smoke.pdf") {
+  const form = new FormData();
+  form.append("arquivo", new Blob([buffer], { type: "application/pdf" }), nome);
+  for (const [k, v] of Object.entries(campos)) form.append(k, String(v));
+  const res = await fetch(BASE + "/documentos", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  return { status: res.status, dados: await res.json().catch(() => null) };
+}
+
 async function postCru(caminho, corpoTexto) {
   const res = await fetch(BASE + caminho, {
     method: "POST",
@@ -1101,6 +1123,85 @@ async function postCru(caminho, corpoTexto) {
     await api(necessidadesUrl, { token: tokenAlunoUep, esperado: 200 });
     await api(necessidadesUrl, { esperado: 401 });
     await api(`/ueps/99999999/compras/necessidades`, { token: tokenAdmin, esperado: 404 });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 13 — Relatorios PDF/Excel e documentos");
+  // ─────────────────────────────────────────────────────────────
+  let pdfRelatorio = null;
+  let docProfId = null;
+
+  await checa(13, "Diretoria gera relatorios em PDF e Excel (com nome do arquivo no header)", async () => {
+    for (const tipo of ["censo-geral", "status-reprodutivo", "necessidades-compras"]) {
+      const pdf = await baixar(`/relatorios/${tipo}/gerar`, { token: tokenAdmin, body: { formato: "pdf", uepId } });
+      assert(pdf.status === 200, `${tipo} pdf devolveu ${pdf.status}`);
+      assert(pdf.headers.get("content-type") === "application/pdf", `${tipo}: content-type ${pdf.headers.get("content-type")}`);
+      assert(pdf.buffer.subarray(0, 5).toString() === "%PDF-", `${tipo}: nao e PDF`);
+      assert(/filename=".+\.pdf"/.test(pdf.headers.get("content-disposition") || ""), `${tipo}: sem Content-Disposition`);
+      if (tipo === "censo-geral") pdfRelatorio = pdf.buffer;
+      const xlsx = await baixar(`/relatorios/${tipo}/gerar`, { token: tokenAdmin, body: { formato: "xlsx" } });
+      assert(xlsx.status === 200 && xlsx.buffer.subarray(0, 2).toString() === "PK", `${tipo} xlsx invalido (${xlsx.status})`);
+    }
+    const mov = await baixar("/relatorios/movimentacao-estoque/gerar", {
+      token: tokenAdmin, body: { formato: "pdf", uepId, dataInicio: "2026-01-01", dataFim: new Date().toISOString().slice(0, 10) },
+    });
+    assert(mov.status === 200, `movimentacao-estoque devolveu ${mov.status}`);
+  });
+
+  await checa(13, "Relatorios validam pedido (400/404) e sao so da Diretoria (403)", async () => {
+    await api("/relatorios/movimentacao-estoque/gerar", { metodo: "POST", token: tokenAdmin, body: { formato: "pdf" }, esperado: 400 });
+    await api("/relatorios/nao-existe/gerar", { metodo: "POST", token: tokenAdmin, body: {}, esperado: 400 });
+    await api("/relatorios/censo-geral/gerar", { metodo: "POST", token: tokenAdmin, body: { formato: "docx" }, esperado: 400 });
+    await api("/relatorios/censo-geral/gerar", { metodo: "POST", token: tokenAdmin, body: { uepId: 99999999 }, esperado: 404 });
+    await api("/relatorios/censo-geral/gerar", { metodo: "POST", token: tokenProfUep, body: {}, esperado: 403 });
+    await api("/relatorios/censo-geral/gerar", { metodo: "POST", body: {}, esperado: 401 });
+  });
+
+  await checa(13, "Professor envia PDF a Diretoria; arquivo que nao e PDF e UEP alheia sao recusados", async () => {
+    const r = await enviarPdf(tokenProfUep, pdfRelatorio, { tipo: "NOTA_FISCAL", descricao: "NF smoke", uepId }, "nota-fiscal-ração.pdf");
+    assert(r.status === 201, `upload devolveu ${r.status}: ${JSON.stringify(r.dados)}`);
+    docProfId = r.dados.id;
+    assert(r.dados.nome_original === "nota-fiscal-ração.pdf", `nome: ${r.dados.nome_original}`);
+    assert(r.dados.uep_id === uepId && r.dados.enviado_por === profUep.id && r.dados.tamanho_bytes === pdfRelatorio.length, "metadados errados");
+    assert(!("conteudo" in r.dados), "a resposta nao pode trazer o conteudo do arquivo");
+    const falso = await enviarPdf(tokenProfUep, Buffer.from("isto nao e um pdf"), {}, "falso.pdf");
+    assert(falso.status === 400, `arquivo falso devolveu ${falso.status}`);
+    const alheia = await enviarPdf(tokenProfUep, pdfRelatorio, { uepId: outraUepId });
+    assert(alheia.status === 403, `UEP alheia devolveu ${alheia.status}`);
+    const aluno = await enviarPdf(tokenAlunoUep, pdfRelatorio);
+    assert(aluno.status === 403, `ALUNO enviando devolveu ${aluno.status}`);
+  });
+
+  await checa(13, "Listagem e download: Professor so ve o proprio; Diretoria ve tudo", async () => {
+    const { dados: doProf } = await api("/documentos", { token: tokenProfUep, esperado: 200 });
+    assert(doProf.length === 1 && doProf[0].id === docProfId, "professor deveria ver so o proprio documento");
+    const { dados: daDiretoria } = await api("/documentos", { token: tokenAdmin, esperado: 200 });
+    assert(daDiretoria.some((d) => d.id === docProfId && d.enviado_por_nome === "Prof UEP Smoke"), "Diretoria deveria ver o envio do professor");
+    const arq = await baixar(`/documentos/${docProfId}/arquivo`, { metodo: "GET", token: tokenAdmin });
+    assert(arq.status === 200 && arq.buffer.equals(pdfRelatorio), "download da Diretoria nao devolveu o mesmo arquivo");
+    await api(`/documentos/${docProfId}/arquivo`, { token: tokenProfB, esperado: 404 });
+    await api(`/documentos/${docProfId}`, { metodo: "DELETE", token: tokenProfB, esperado: 404 });
+  });
+
+  await checa(13, "Diretoria une documento + relatorio gerado na hora em um PDF so", async () => {
+    const unido = await baixar("/documentos/unir", {
+      token: tokenAdmin,
+      body: { itens: [
+        { origem: "documento", id: docProfId },
+        { origem: "relatorio", relatorio: "status-reprodutivo", uepId },
+      ] },
+    });
+    assert(unido.status === 200 && unido.buffer.subarray(0, 5).toString() === "%PDF-", `unir devolveu ${unido.status}`);
+    assert(unido.buffer.length > pdfRelatorio.length, "o PDF unido deveria ser maior que o documento sozinho");
+    assert(/uniao-documentos-.+\.pdf/.test(unido.headers.get("content-disposition") || ""), "nome do arquivo unido ausente");
+    await api("/documentos/unir", { metodo: "POST", token: tokenAdmin, body: { itens: [{ origem: "documento", id: docProfId }] }, esperado: 400 });
+    await api("/documentos/unir", { metodo: "POST", token: tokenAdmin, body: { itens: [{ origem: "documento", id: docProfId }, { origem: "documento", id: 99999999 }] }, esperado: 404 });
+    await api("/documentos/unir", { metodo: "POST", token: tokenProfUep, body: { itens: [] }, esperado: 403 });
+  });
+
+  await checa(13, "Professor remove o proprio documento (204)", async () => {
+    await api(`/documentos/${docProfId}`, { metodo: "DELETE", token: tokenProfUep, esperado: 204 });
+    await api(`/documentos/${docProfId}/arquivo`, { token: tokenAdmin, esperado: 404 });
   });
 
   // ─────────────────────────────────────────────────────────────

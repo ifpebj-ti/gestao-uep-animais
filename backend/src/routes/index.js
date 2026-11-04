@@ -4,6 +4,8 @@ import usersRoutes from "../modules/users/users.routes.js";
 import uepsRoutes from "../modules/ueps/ueps.routes.js";
 import animaisRoutes from "../modules/animais/animais.routes.js";
 import { estoqueRaizRouter } from "../modules/estoque/estoque.routes.js";
+import relatoriosRoutes from "../modules/relatorios/relatorios.routes.js";
+import documentosRoutes from "../modules/documentos/documentos.routes.js";
 
 const router = Router();
 
@@ -19,5 +21,9 @@ router.use("/animais", animaisRoutes);
 
 // Sprint 11: painel de alertas de estoque entre as UEPs do usuário
 router.use("/estoque", estoqueRaizRouter);
+
+// Sprint 13: relatórios em PDF/Excel e documentos (notas fiscais / união de PDFs)
+router.use("/relatorios", relatoriosRoutes);
+router.use("/documentos", documentosRoutes);
 
 export default router;
