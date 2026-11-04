@@ -29,6 +29,13 @@ test("parseNumero usa padrao quando ausente e valida faixa", () => {
   assert.throws(() => parseNumero(true, "x"), (e) => e.statusCode === 400);
 });
 
+test("parseNumero aceita ate 3 casas decimais (precisao do banco)", () => {
+  assert.equal(parseNumero("0.125", "q"), 0.125);
+  assert.equal(parseNumero(0.1 + 0.2, "q"), 0.1 + 0.2); // ruido de float nao conta como 4a casa
+  assert.throws(() => parseNumero("1.2345", "q"), (e) => e.statusCode === 400);
+  assert.throws(() => parseNumero(0.0004, "q", { minimoExclusivo: true }), (e) => e.statusCode === 400);
+});
+
 test("parseNumero com minimoExclusivo rejeita zero (quantidade da movimentacao)", () => {
   assert.equal(parseNumero(0.001, "q", { minimoExclusivo: true }), 0.001);
   assert.throws(() => parseNumero(0, "q", { minimoExclusivo: true }), (e) => e.statusCode === 400);

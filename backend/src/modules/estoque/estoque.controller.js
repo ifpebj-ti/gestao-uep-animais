@@ -11,6 +11,14 @@ export const estoqueController = {
     res.status(201).json(insumo);
   }),
 
+  getInsumo: asyncHandler(async (req, res) => {
+    res.json(await estoqueService.getInsumo(req.params.uepId, req.params.insumoId));
+  }),
+
+  updateInsumo: asyncHandler(async (req, res) => {
+    res.json(await estoqueService.updateInsumo(req.params.uepId, req.params.insumoId, req.body));
+  }),
+
   listMovimentacoes: asyncHandler(async (req, res) => {
     res.json(await estoqueService.listMovimentacoes(req.params.uepId, req.query));
   }),
