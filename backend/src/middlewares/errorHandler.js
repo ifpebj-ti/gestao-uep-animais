@@ -15,6 +15,23 @@ function mapBodyParserError(err) {
   return null;
 }
 
+// Erros do multer (upload de arquivo, Sprint 13).
+function mapMulterError(err) {
+  // multipart quebrado (corpo cortado, sem boundary) vem do busboy, sem MulterError
+  if (err.name !== "MulterError") {
+    return /multipart|end of form|boundary/i.test(err.message ?? "")
+      ? ApiError.badRequest("Envio de arquivo inválido (multipart malformado).")
+      : null;
+  }
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return ApiError.badRequest("Arquivo grande demais: o limite é de 10 MB por arquivo.");
+  }
+  if (err.code === "LIMIT_UNEXPECTED_FILE" || err.code === "LIMIT_FILE_COUNT") {
+    return ApiError.badRequest("Envie um único PDF no campo 'arquivo'.");
+  }
+  return ApiError.badRequest("Envio de arquivo inválido.");
+}
+
 // Trata violação de FK/UNIQUE do Postgres de forma amigável
 export function mapPgError(err) {
   if (err.code === "23505") {
@@ -35,7 +52,7 @@ export function mapPgError(err) {
 /* Converte qualquer erro em ApiError (o que não é reconhecido vira 500). */
 export function toApiError(err) {
   if (err instanceof ApiError) return err;
-  return mapBodyParserError(err) ?? mapPgError(err);
+  return mapBodyParserError(err) ?? mapMulterError(err) ?? mapPgError(err);
 }
 
 // eslint-disable-next-line no-unused-vars
