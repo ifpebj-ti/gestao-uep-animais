@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { uepsController } from "./ueps.controller.js";
 import { authenticate } from "../../middlewares/authMiddleware.js";
-import { allowWriteOrReadOnly } from "../../middlewares/rbacMiddleware.js";
+import { authorize } from "../../middlewares/rbacMiddleware.js";
+import { requireUepAccess } from "../../middlewares/uepAccessMiddleware.js";
+import { ROLES } from "../../config/roles.js";
 import animaisRouter from "../animais/animais.routes.js";
 import estoqueRouter from "../estoque/estoque.routes.js";
 import comprasRouter from "../compras/compras.routes.js";
@@ -11,13 +13,19 @@ const router = Router();
 router.use(authenticate);
 
 // CRUD de setores/UEPs (Sprint 4)
-// GET liberado para todos os papéis autenticados; escrita restrita a
-// ADMIN/PROFESSOR/TECNICO (ALUNO e ESTAGIARIO ficam somente-leitura).
+// A lista e o detalhe são liberados a todo usuário autenticado (a tela de
+// Controle de Acesso e a seleção de setor precisam dos nomes). Criar,
+// editar e excluir uma UEP é só da Diretoria (ADMIN): excluir apaga em
+// cascata todos os animais e o estoque do setor.
 router.get("/", uepsController.list);
 router.get("/:id", uepsController.getById);
-router.post("/", allowWriteOrReadOnly, uepsController.create);
-router.patch("/:id", allowWriteOrReadOnly, uepsController.update);
-router.delete("/:id", allowWriteOrReadOnly, uepsController.remove);
+router.post("/", authorize(ROLES.ADMIN), uepsController.create);
+router.patch("/:id", authorize(ROLES.ADMIN), uepsController.update);
+router.delete("/:id", authorize(ROLES.ADMIN), uepsController.remove);
+
+// Tudo que fica DENTRO de uma UEP passa pelo isolamento por setor: o
+// usuário só chega aqui se a UEP for uma das dele (ver uepAccessMiddleware).
+router.use("/:uepId", requireUepAccess);
 
 // Dados de animais sempre associados/isolados por UEP:
 // GET/POST /api/ueps/:uepId/animais

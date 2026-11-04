@@ -1,6 +1,7 @@
 import { uepsRepository } from "./ueps.repository.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { UEP_TIPOS } from "../../config/enums.js";
+import { parseId, parseEnumOpcional } from "../../utils/validacao.js";
 
 function assertValidTipo(tipo) {
   if (!UEP_TIPOS.includes(tipo)) {
@@ -11,11 +12,15 @@ function assertValidTipo(tipo) {
 }
 
 export const uepsService = {
-  async list(filters) {
-    return uepsRepository.findAll(filters);
+  async list(filters = {}) {
+    return uepsRepository.findAll({
+      ...filters,
+      tipo: parseEnumOpcional(filters.tipo, UEP_TIPOS, "tipo"),
+    });
   },
 
-  async getById(id) {
+  async getById(idRaw) {
+    const id = parseId(idRaw, "id");
     const uep = await uepsRepository.findById(id);
     if (!uep) throw ApiError.notFound("UEP não encontrada");
     return uep;
@@ -27,14 +32,16 @@ export const uepsService = {
     return uepsRepository.create({ nome, tipo, descricao, responsavelId });
   },
 
-  async update(id, data) {
+  async update(idRaw, data = {}) {
+    const id = parseId(idRaw, "id");
     if (data.tipo) assertValidTipo(data.tipo);
     const updated = await uepsRepository.update(id, data);
     if (!updated) throw ApiError.notFound("UEP não encontrada");
     return updated;
   },
 
-  async remove(id) {
+  async remove(idRaw) {
+    const id = parseId(idRaw, "id");
     const removed = await uepsRepository.remove(id);
     if (!removed) throw ApiError.notFound("UEP não encontrada");
   },

@@ -59,6 +59,51 @@ async function seedDemoUsers(client) {
     );
     console.log(`Usuário semente criado: ${email} (${u.role})`);
   }
+
+  await vincularDemoAUeps(client);
+}
+
+/* Com o isolamento por UEP no backend (Sprint 4), uma conta sem UEP não vê
+   dado de setor nenhum. Para as contas de demonstração continuarem úteis:
+   - o Professor demo recebe todas as UEPs, se ainda não tiver nenhuma;
+   - Técnico/Estagiário/Aluno demo entram na equipe do Professor demo, na
+     primeira UEP (por nome), se ainda estiverem sem UEP e sem professor.
+   Só mexe em conta "solta": o que a Diretoria/Professor já configurou fica. */
+async function vincularDemoAUeps(client) {
+  const emailDe = (prefixo) =>
+    process.env[`SEED_${prefixo}_EMAIL`] || DEMO_USERS.find((u) => u.envPrefix === prefixo).defaultEmail;
+
+  const { rows: prof } = await client.query(
+    "SELECT id FROM users WHERE email = $1 AND role = 'PROFESSOR'",
+    [emailDe("PROFESSOR")]
+  );
+  if (prof.length === 0) return;
+  const professorId = prof[0].id;
+
+  const { rowCount: concedidas } = await client.query(
+    `INSERT INTO professor_ueps (professor_id, uep_id)
+     SELECT $1, u.id FROM ueps u
+     WHERE NOT EXISTS (SELECT 1 FROM professor_ueps WHERE professor_id = $1)
+     ON CONFLICT DO NOTHING`,
+    [professorId]
+  );
+  if (concedidas > 0) console.log(`Professor demo: ${concedidas} UEP(s) concedida(s).`);
+
+  const { rows: primeira } = await client.query(
+    `SELECT pu.uep_id FROM professor_ueps pu JOIN ueps u ON u.id = pu.uep_id
+     WHERE pu.professor_id = $1 ORDER BY u.nome LIMIT 1`,
+    [professorId]
+  );
+  if (primeira.length === 0) return;
+
+  const emailsEquipe = ["TECNICO", "ESTAGIARIO", "ALUNO"].map(emailDe);
+  const { rowCount: vinculados } = await client.query(
+    `UPDATE users SET professor_id = $1, uep_id = $2, updated_at = now()
+     WHERE email = ANY($3::text[]) AND uep_id IS NULL AND professor_id IS NULL
+       AND role IN ('TECNICO', 'ESTAGIARIO', 'ALUNO')`,
+    [professorId, primeira[0].uep_id, emailsEquipe]
+  );
+  if (vinculados > 0) console.log(`Equipe demo: ${vinculados} conta(s) vinculada(s) ao Professor demo.`);
 }
 
 async function run() {
