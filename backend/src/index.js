@@ -1,36 +1,6 @@
-import "dotenv/config";
-import express from "express";
-import cors from "cors";
-import morgan from "morgan";
-import apiRoutes from "./routes/index.js"; // <- Aqui ele importa aquele seu arquivo de rotas!
-import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
+import app from "./app.js";
 
-const app = express();
 const PORT = process.env.BACKEND_PORT || 3000;
-
-// Ajuste do CORS para o seu frontend
-const corsOrigins = (
-  process.env.CORS_ORIGINS || "http://localhost:8080,http://127.0.0.1:5500"
-).split(",");
-app.use(
-  cors({
-    origin: corsOrigins,
-    credentials: true,
-  })
-);
-
-app.use(express.json());
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "gestao-uep-backend" });
-});
-
-// Usando as rotas que você me mandou
-app.use("/api", apiRoutes); 
-
-app.use(notFoundHandler);
-app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Backend rodando na porta ${PORT}`);

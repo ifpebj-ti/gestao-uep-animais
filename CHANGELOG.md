@@ -7,6 +7,16 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Segurança
+- Sprint 3: `JWT_SECRET` passa a ser obrigatório em produção (o backend não sobe com o valor de exemplo)
+- Sprint 3: cada requisição confere se a conta do token ainda existe e está ativa, e usa o papel atual do banco
+
+### Corrigido
+- Sprint 3: login aceita o e-mail com maiúsculas/espaços; JSON malformado no corpo devolve 400 em vez de 500; senha mínima de 6 caracteres também no autocadastro
+
+### Adicionado
+- Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`
+
 ## [0.3.0] - 2026-09-30
 
 Entrega do Marco da Primeira Unidade.
