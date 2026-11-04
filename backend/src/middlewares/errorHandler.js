@@ -23,6 +23,12 @@ export function mapPgError(err) {
   if (err.code === "23503") {
     return ApiError.badRequest("Referência inválida: FK aponta para um registro inexistente.");
   }
+  // Rede de segurança: valores que o Postgres não aceita (texto num campo
+  // numérico, valor fora de um enum, data inexistente, CHECK violado,
+  // número grande demais) são erro de quem chamou (400), não do servidor.
+  if (["22P02", "22007", "22008", "23514", "22003"].includes(err.code)) {
+    return ApiError.badRequest("Valor inválido em um dos campos enviados.");
+  }
   return null;
 }
 

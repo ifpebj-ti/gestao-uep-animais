@@ -1,12 +1,13 @@
 import { uepsService } from "./ueps.service.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
+import { parseBooleanoOpcional } from "../../utils/validacao.js";
 
 export const uepsController = {
   list: asyncHandler(async (req, res) => {
     const { tipo, ativo } = req.query;
     const ueps = await uepsService.list({
       tipo,
-      ativo: ativo === undefined ? undefined : ativo === "true",
+      ativo: parseBooleanoOpcional(ativo, "ativo"),
     });
     res.json(ueps);
   }),

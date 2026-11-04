@@ -10,13 +10,17 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Segurança
 - Sprint 3: `JWT_SECRET` passa a ser obrigatório em produção (o backend não sobe com o valor de exemplo)
 - Sprint 3: cada requisição confere se a conta do token ainda existe e está ativa, e usa o papel atual do banco
+- Sprint 4: isolamento por UEP no backend — dados em `/api/ueps/:uepId/*` (animais, estoque, compras) só para quem tem acesso à UEP (Diretoria: todas; Professor: as concedidas; equipe: a própria), senão 403
+- Sprint 4: criar, editar e excluir UEP passa a ser exclusivo da Diretoria (ADMIN)
 
 ### Corrigido
 - Sprint 3: login aceita o e-mail com maiúsculas/espaços; JSON malformado no corpo devolve 400 em vez de 500; senha mínima de 6 caracteres também no autocadastro
+- Sprint 4: id de UEP inválido (`/ueps/abc`) e filtros fora do enum devolvem 400 em vez de 500
 
 ### Adicionado
 - Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`
 
+- Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 ## [0.3.0] - 2026-09-30
 
 Entrega do Marco da Primeira Unidade.

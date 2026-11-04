@@ -1,16 +1,12 @@
 import { ApiError } from "../../utils/ApiError.js";
 
+// parseId fica em utils/validacao.js (usado por todos os modulos); reexportado
+// aqui para nao quebrar quem ja importa daqui.
+export { parseId } from "../../utils/validacao.js";
+
 // Maior valor aceito em saldo/quantidade (NUMERIC(14,3) comporta ate 11
 // digitos inteiros; 1e10 deixa folga para somar entradas sem estourar).
 export const MAX_VALOR = 1e10;
-
-export function parseId(value, label) {
-  const n = typeof value === "string" ? Number(value) : value;
-  if (!Number.isInteger(n) || n <= 0) {
-    throw ApiError.badRequest(`${label} inválido.`);
-  }
-  return n;
-}
 
 /**
  * Converte para numero finito. `padrao` e usado quando o campo vem ausente

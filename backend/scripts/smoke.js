@@ -242,6 +242,84 @@ async function postCru(caminho, corpoTexto) {
     });
   });
 
+  await checa(4, "So a Diretoria cria/edita/exclui UEP: PROFESSOR recebe 403", async () => {
+    // tokenProfUep e criado logo abaixo; aqui usa um professor descartavel
+    const email = `smoke.profcrud.${Date.now()}@ifpe.edu.br`;
+    const { dados: prof } = await api("/users", {
+      metodo: "POST", token: tokenAdmin,
+      body: { nome: "Prof CRUD", email, senha: "senha123", role: "PROFESSOR" },
+      esperado: 201,
+    });
+    const { dados: login } = await api("/auth/login", { metodo: "POST", body: { email, senha: "senha123" }, esperado: 200 });
+    await api("/ueps", { metodo: "POST", token: login.token, body: { nome: "Nao pode", tipo: "OUTRO" }, esperado: 403 });
+    await api(`/ueps/${uepId}`, { metodo: "PATCH", token: login.token, body: { descricao: "x" }, esperado: 403 });
+    await api(`/ueps/${uepId}`, { metodo: "DELETE", token: login.token, esperado: 403 });
+    await api(`/users/${prof.id}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
+  });
+
+  await checa(4, "Id de UEP invalido devolve 400 (e nao 500)", async () => {
+    await api("/ueps/abc", { token: tokenAdmin, esperado: 400 });
+    await api("/ueps/1.5/animais", { token: tokenAdmin, esperado: 400 });
+    await api("/ueps?tipo=DRAGAOCULTURA", { token: tokenAdmin, esperado: 400 });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 4 — Isolamento por UEP no backend");
+  // ─────────────────────────────────────────────────────────────
+  // Professor com acesso SO a UEP do smoke e um ALUNO da equipe dele nessa
+  // UEP. As leituras de "perfil somente-leitura" dos blocos seguintes usam
+  // esse aluno (tokenAlunoUep); o aluno do autocadastro (tokenAluno) nao
+  // tem UEP nenhuma e passa a receber 403 nos dados de qualquer setor.
+  let profUep = null;
+  let tokenProfUep = null;
+  let alunoUepId = null;
+  let tokenAlunoUep = null;
+  let outraUepId = null;
+
+  await checa(4, "Prepara professor da UEP do smoke e um ALUNO da equipe dele", async () => {
+    const sfx = Date.now();
+    const { dados: prof } = await api("/users", {
+      metodo: "POST", token: tokenAdmin,
+      body: { nome: "Prof UEP Smoke", email: `smoke.profuep.${sfx}@ifpe.edu.br`, senha: "senha123", role: "PROFESSOR", uepIds: [uepId] },
+      esperado: 201,
+    });
+    profUep = prof;
+    tokenProfUep = (await api("/auth/login", { metodo: "POST", body: { email: prof.email, senha: "senha123" }, esperado: 200 })).dados.token;
+
+    const emailAluno = `smoke.alunouep.${sfx}@teste.com`;
+    const { dados: aluno } = await api("/users", {
+      metodo: "POST", token: tokenProfUep,
+      body: { nome: "Aluno UEP Smoke", email: emailAluno, senha: "senha123", role: "ALUNO" },
+      esperado: 201,
+    });
+    alunoUepId = aluno.id;
+    assert(aluno.uep_id === uepId, `aluno deveria estar na UEP ${uepId}, veio ${aluno.uep_id}`);
+    tokenAlunoUep = (await api("/auth/login", { metodo: "POST", body: { email: emailAluno, senha: "senha123" }, esperado: 200 })).dados.token;
+
+    const { dados: todas } = await api("/ueps", { token: tokenAdmin, esperado: 200 });
+    outraUepId = todas.find((u) => u.id !== uepId).id;
+  });
+
+  await checa(4, "Equipe e Professor acessam a propria UEP (200)", async () => {
+    await api(`/ueps/${uepId}/animais`, { token: tokenAlunoUep, esperado: 200 });
+    await api(`/ueps/${uepId}/insumos`, { token: tokenProfUep, esperado: 200 });
+  });
+
+  await checa(4, "Ninguem le nem grava dados de UEP que nao e sua (403)", async () => {
+    await api(`/ueps/${outraUepId}/animais`, { token: tokenAlunoUep, esperado: 403 });
+    await api(`/ueps/${outraUepId}/insumos`, { token: tokenProfUep, esperado: 403 });
+    await api(`/ueps/${outraUepId}/compras/necessidades`, { token: tokenProfUep, esperado: 403 });
+    await api(`/ueps/${outraUepId}/animais`, {
+      metodo: "POST", token: tokenProfUep,
+      body: { brinco: "SMK-INVASAO", categoria: "VACA", sexo: "FEMEA" },
+      esperado: 403,
+    });
+  });
+
+  await checa(4, "Conta sem UEP (autocadastro) nao acessa dados de setor nenhum (403)", async () => {
+    await api(`/ueps/${uepId}/animais`, { token: tokenAluno, esperado: 403 });
+  });
+
   // ─────────────────────────────────────────────────────────────
   console.log("\nSPRINT 5 — Censo e contagem de animais");
   // ─────────────────────────────────────────────────────────────
@@ -359,9 +437,9 @@ async function postCru(caminho, corpoTexto) {
   });
 
   await checa(5, "RBAC: ALUNO le animais mas nao cadastra (403)", async () => {
-    await api(`/ueps/${uepId}/animais`, { token: tokenAluno, esperado: 200 });
+    await api(`/ueps/${uepId}/animais`, { token: tokenAlunoUep, esperado: 200 });
     await api(`/ueps/${uepId}/animais`, {
-      metodo: "POST", token: tokenAluno,
+      metodo: "POST", token: tokenAlunoUep,
       body: { brinco: "SMK-BLOQ", categoria: "VACA", sexo: "FEMEA" },
       esperado: 403,
     });
@@ -720,12 +798,12 @@ async function postCru(caminho, corpoTexto) {
   });
 
   await checa(10, "RBAC: ALUNO le o estoque, mas nao cria insumo nem movimentacao (403)", async () => {
-    await api(`${base}/insumos`, { token: tokenAluno, esperado: 200 });
-    await api(`${base}/estoque/movimentacoes`, { token: tokenAluno, esperado: 200 });
-    await api(`${base}/insumos`, { metodo: "POST", token: tokenAluno, body: { nome: "Nao", unidade: "kg" }, esperado: 403 });
+    await api(`${base}/insumos`, { token: tokenAlunoUep, esperado: 200 });
+    await api(`${base}/estoque/movimentacoes`, { token: tokenAlunoUep, esperado: 200 });
+    await api(`${base}/insumos`, { metodo: "POST", token: tokenAlunoUep, body: { nome: "Nao", unidade: "kg" }, esperado: 403 });
     await api(`${base}/estoque/movimentacoes`, {
       metodo: "POST",
-      token: tokenAluno,
+      token: tokenAlunoUep,
       body: { insumoId, tipo: "SAIDA", quantidade: 1 },
       esperado: 403,
     });
@@ -819,7 +897,7 @@ async function postCru(caminho, corpoTexto) {
   });
 
   await checa(12, "Acesso: ALUNO le (200), sem token 401, UEP inexistente 404", async () => {
-    await api(necessidadesUrl, { token: tokenAluno, esperado: 200 });
+    await api(necessidadesUrl, { token: tokenAlunoUep, esperado: 200 });
     await api(necessidadesUrl, { esperado: 401 });
     await api(`/ueps/99999999/compras/necessidades`, { token: tokenAdmin, esperado: 404 });
   });
@@ -832,6 +910,10 @@ async function postCru(caminho, corpoTexto) {
       await api(`/animais/${id}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
     }
     await api(`/ueps/${uepId}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
+    if (alunoUepId) {
+      await api(`/users/${alunoUepId}`, { metodo: "DELETE", token: tokenProfUep, esperado: 204 });
+    }
+    if (profUep) await api(`/users/${profUep.id}`, { metodo: "DELETE", token: tokenAdmin, esperado: 204 });
     if (alunoEquipeId) {
       await api(`/users/${alunoEquipeId}`, { metodo: "DELETE", token: tokenProfA, esperado: 204 });
     }
