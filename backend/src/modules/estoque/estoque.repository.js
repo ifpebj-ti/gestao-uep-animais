@@ -36,6 +36,39 @@ export const estoqueRepository = {
     return rows;
   },
 
+  async findInsumo(uepId, insumoId) {
+    const { rows } = await query(
+      `SELECT ${INSUMO_COLUMNS} FROM insumos i WHERE i.id = $1 AND i.uep_id = $2`,
+      [insumoId, uepId]
+    );
+    return rows[0] ?? null;
+  },
+
+  /**
+   * Atualiza o cadastro do insumo (nome, unidade, mínimo, consumo). O saldo
+   * NÃO entra aqui: ele só muda por movimentação, para o histórico sempre
+   * explicar o saldo.
+   */
+  async updateInsumo(uepId, insumoId, campos) {
+    const colunas = Object.keys(campos);
+    if (colunas.length === 0) return this.findInsumo(uepId, insumoId);
+    const sets = colunas.map((c, i) => `${c} = $${i + 3}`);
+    try {
+      const { rowCount } = await query(
+        `UPDATE insumos SET ${sets.join(", ")}, updated_at = now()
+         WHERE id = $1 AND uep_id = $2`,
+        [insumoId, uepId, ...colunas.map((c) => campos[c])]
+      );
+      if (rowCount === 0) return null;
+      return this.findInsumo(uepId, insumoId);
+    } catch (err) {
+      if (err.code === "23505") {
+        throw ApiError.badRequest("Já existe um insumo com esse nome nesta UEP.");
+      }
+      throw err;
+    }
+  },
+
   /**
    * Cria o insumo e, se saldoInicial > 0, a ENTRADA correspondente — tudo na
    * mesma transacao, para saldo e historico nunca divergirem.

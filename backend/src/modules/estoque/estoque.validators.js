@@ -30,6 +30,11 @@ export function parseNumero(value, label, { padrao, minimoExclusivo = false } = 
   if (n > MAX_VALOR) {
     throw ApiError.badRequest(`${label} excede o valor máximo permitido.`);
   }
+  // O banco guarda 3 casas (NUMERIC(14,3)). Mais que isso era arredondado em
+  // silêncio — e 0.0004 virava 0, estourando o CHECK quantidade > 0.
+  if (Math.abs(Math.round(n * 1000) - n * 1000) > 1e-6) {
+    throw ApiError.badRequest(`${label} aceita no máximo 3 casas decimais.`);
+  }
   return n;
 }
 

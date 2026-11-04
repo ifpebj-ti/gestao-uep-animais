@@ -10,6 +10,13 @@ const router = Router({ mergeParams: true });
 // ALUNO/ESTAGIARIO (mesma regra do modulo de animais).
 router.get("/insumos", authenticate, estoqueController.listInsumos);
 router.post("/insumos", authenticate, allowWriteOrReadOnly, estoqueController.createInsumo);
+router.get("/insumos/:insumoId", authenticate, estoqueController.getInsumo);
+router.patch(
+  "/insumos/:insumoId",
+  authenticate,
+  allowWriteOrReadOnly,
+  estoqueController.updateInsumo
+);
 
 router.get("/estoque/movimentacoes", authenticate, estoqueController.listMovimentacoes);
 router.post(

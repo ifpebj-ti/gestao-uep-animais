@@ -951,6 +951,27 @@ async function postCru(caminho, corpoTexto) {
     });
   });
 
+  await checa(10, "PATCH /insumos/:id edita minimo/consumo; saldo so por movimentacao (400)", async () => {
+    const { dados } = await api(`${base}/insumos/${insumoId}`, {
+      metodo: "PATCH", token: tokenProfUep, body: { estoqueMinimo: 7.5, consumoMedioDiario: "1.25" }, esperado: 200,
+    });
+    assert(dados.estoque_minimo === 7.5 && dados.consumo_medio_diario === 1.25, `nao atualizou: ${JSON.stringify(dados)}`);
+    const { dados: um } = await api(`${base}/insumos/${insumoId}`, { token: tokenAlunoUep, esperado: 200 });
+    assert(um.id === insumoId && um.estoque_minimo === 7.5, "GET /insumos/:id nao trouxe o insumo atualizado");
+    await api(`${base}/insumos/${insumoId}`, { metodo: "PATCH", token: tokenAdmin, body: { saldoAtual: 9999 }, esperado: 400 });
+    await api(`${base}/insumos/${insumoId}`, { metodo: "PATCH", token: tokenAlunoUep, body: { estoqueMinimo: 1 }, esperado: 403 });
+    await api(`/ueps/${outraUepId}/insumos/${insumoId}`, { token: tokenAdmin, esperado: 404 });
+  });
+
+  await checa(10, "Quantidade com mais de 3 casas e data futura devolvem 400", async () => {
+    await api(`${base}/estoque/movimentacoes`, {
+      metodo: "POST", token: tokenAdmin, body: { insumoId, tipo: "ENTRADA", quantidade: 1.2345 }, esperado: 400,
+    });
+    await api(`${base}/estoque/movimentacoes`, {
+      metodo: "POST", token: tokenAdmin, body: { insumoId, tipo: "ENTRADA", quantidade: 1, data: "2999-01-01" }, esperado: 400,
+    });
+  });
+
   // ─────────────────────────────────────────────────────────────
   console.log("\nSPRINT 12 — Apoio as compras (necessidades consolidadas)");
   // ─────────────────────────────────────────────────────────────
