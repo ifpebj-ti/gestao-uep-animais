@@ -492,6 +492,64 @@ async function postCru(caminho, corpoTexto) {
   });
 
   // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 6 — Raca, genetica e estagio de vida");
+  // ─────────────────────────────────────────────────────────────
+  let filhoId = null;
+
+  await checa(6, "Cadastra cria com pai, mae e grau de sangue; devolve estagio e idade", async () => {
+    const { dados } = await api(`/ueps/${uepId}/animais`, {
+      metodo: "POST", token: tokenAdmin,
+      body: {
+        brinco: "SMK-CRIA", categoria: "BEZERRA", sexo: "FEMEA", raca: "Nelore",
+        grauSangue: "1/2 Nelore x Gir", dataNascimento: "2025-06-10",
+        paiId: animaisCriados[2], maeId: animaisCriados[5],
+      },
+      esperado: 201,
+    });
+    filhoId = dados.id;
+    animaisCriados.push(dados.id);
+    assert(dados.grau_sangue === "1/2 Nelore x Gir", `grau_sangue: ${dados.grau_sangue}`);
+    assert(dados.pai_brinco === "SMK-003" && dados.mae_brinco === "SMK-006", `pais: ${dados.pai_brinco}/${dados.mae_brinco}`);
+    assert(dados.estagio_vida === "CRIA", `estagio_vida esperado CRIA, veio ${dados.estagio_vida}`);
+    assert(Number.isInteger(dados.idade_meses) && dados.idade_meses >= 0, `idade_meses: ${dados.idade_meses}`);
+    assert(dados.data_nascimento === "2025-06-10", `data_nascimento deveria vir como AAAA-MM-DD, veio ${dados.data_nascimento}`);
+  });
+
+  await checa(6, "GET genealogia traz pai, mae e filhos", async () => {
+    const { dados } = await api(`/ueps/${uepId}/animais/${animaisCriados[5]}/genealogia`, { token: tokenAlunoUep, esperado: 200 });
+    assert(dados.animal.id === animaisCriados[5], "animal errado");
+    assert(dados.filhos.some((f) => f.id === filhoId), "a cria deveria aparecer nos filhos da mae");
+    const { dados: g } = await api(`/ueps/${uepId}/animais/${filhoId}/genealogia`, { token: tokenAdmin, esperado: 200 });
+    assert(g.pai?.brinco === "SMK-003" && g.mae?.brinco === "SMK-006", "pai/mae da cria errados");
+  });
+
+  await checa(6, "Genealogia invalida devolve 400 (mae no lugar do pai, pai de outra UEP)", async () => {
+    await api(`/ueps/${uepId}/animais/${filhoId}`, { metodo: "PATCH", token: tokenAdmin, body: { paiId: animaisCriados[5] }, esperado: 400 });
+    const { dados: deFora } = await api(`/ueps/${outraUepId}/animais?sexo=MACHO`, { token: tokenAdmin, esperado: 200 });
+    if (deFora.length) {
+      await api(`/ueps/${uepId}/animais/${filhoId}`, { metodo: "PATCH", token: tokenAdmin, body: { paiId: deFora[0].id }, esperado: 400 });
+    }
+    await api(`/ueps/${uepId}/animais/${filhoId}`, { metodo: "PATCH", token: tokenAdmin, body: { maeId: filhoId }, esperado: 400 });
+  });
+
+  await checa(6, "Categoria x sexo x fase reprodutiva coerentes (400 quando nao combinam)", async () => {
+    await api(`/ueps/${uepId}/animais`, { metodo: "POST", token: tokenAdmin, body: { brinco: "SMK-ERR1", categoria: "VACA", sexo: "MACHO" }, esperado: 400 });
+    await api(`/ueps/${uepId}/animais`, { metodo: "POST", token: tokenAdmin, body: { brinco: "SMK-ERR2", categoria: "OUTRO", sexo: "MACHO", statusReprodutivo: "PRENHE" }, esperado: 400 });
+    // PATCH confere o estado final: o touro (macho) nao pode virar LACTANTE
+    await api(`/ueps/${uepId}/animais/${animaisCriados[2]}`, { metodo: "PATCH", token: tokenAdmin, body: { statusReprodutivo: "LACTANTE" }, esperado: 400 });
+  });
+
+  await checa(6, "Censo por estagio de vida e filtro ?estagioVida=", async () => {
+    const { dados } = await api(`/ueps/${uepId}/animais/censo`, { token: tokenAdmin, esperado: 200 });
+    assert(Array.isArray(dados.porEstagioVida), "porEstagioVida ausente");
+    const soma = dados.porEstagioVida.reduce((acc, l) => acc + l.total, 0);
+    assert(soma === dados.total, `soma por estagio ${soma} diferente do total ${dados.total}`);
+    const { dados: crias } = await api(`/ueps/${uepId}/animais?estagioVida=CRIA`, { token: tokenAdmin, esperado: 200 });
+    assert(crias.length >= 2 && crias.every((a) => a.estagio_vida === "CRIA"), "filtro estagioVida=CRIA falhou");
+    await api(`/ueps/${uepId}/animais?estagioVida=IDOSO`, { token: tokenAdmin, esperado: 400 });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   console.log("\nHIERARQUIA — Diretoria -> Professor -> Equipe");
   // ─────────────────────────────────────────────────────────────
   const sufixo = Date.now();

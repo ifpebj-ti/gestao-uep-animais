@@ -54,8 +54,14 @@ test("corpo que nao e objeto vira 400", () => {
 
 test("validarFiltros valida enums e booleano da query", () => {
   assert.deepEqual(validarFiltros({ categoria: "VACA", disponivel: "false" }), {
-    categoria: "VACA", sexo: undefined, statusReprodutivo: undefined, disponivel: false, busca: undefined,
+    categoria: "VACA", sexo: undefined, statusReprodutivo: undefined, disponivel: false, estagioVida: undefined, busca: undefined,
   });
   assert.throws(() => validarFiltros({ categoria: "PEGASO" }), erro400);
   assert.throws(() => validarFiltros({ disponivel: "talvez" }), erro400);
+});
+
+test("genealogia: paiId/maeId viram ids e null desfaz o vinculo", () => {
+  assert.deepEqual(validarAnimal({ paiId: "4", maeId: null }, { parcial: true }), { pai_id: 4, mae_id: null });
+  assert.throws(() => validarAnimal({ paiId: "abc" }, { parcial: true }), erro400);
+  assert.deepEqual(validarAnimal({ grauSangue: " 1/2 Nelore " }, { parcial: true }), { grau_sangue: "1/2 Nelore" });
 });

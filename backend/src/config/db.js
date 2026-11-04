@@ -1,7 +1,12 @@
 import pg from "pg";
 import "dotenv/config";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// Colunas DATE (ex.: data_nascimento, data de movimentação) voltam como texto
+// "AAAA-MM-DD". Sem isso o pg cria um Date na meia-noite do fuso do processo,
+// e num servidor com fuso diferente do de Brasília a data "voltava" um dia.
+types.setTypeParser(1082, (valor) => valor);
 
 export const pool = new Pool({
   host: process.env.DB_HOST || "db",
