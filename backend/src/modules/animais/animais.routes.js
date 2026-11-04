@@ -11,6 +11,7 @@ router.use(authenticate);
 // Rotas específicas ANTES de "/:id" para não colidirem com o parâmetro
 router.get("/censo", animaisController.censo);
 router.get("/buscar", animaisController.search);
+router.get("/disponibilidade", animaisController.disponibilidade);
 
 router.get("/", animaisController.list);
 router.get("/:id", animaisController.getById);

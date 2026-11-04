@@ -3,6 +3,7 @@ import {
   ANIMAL_CATEGORIAS,
   ANIMAL_SEXOS,
   STATUS_REPRODUTIVOS,
+  MOTIVOS_INDISPONIBILIDADE,
 } from "../../config/enums.js";
 import { ESTAGIOS_VIDA } from "./animais.genetica.js";
 import {
@@ -98,6 +99,21 @@ export function validarAnimal(body = {}, { parcial = false } = {}) {
     if (disponivel !== undefined) dados.disponivel = disponivel;
   }
 
+  // Sprint 7: null explícito em motivoIndisponibilidade = "voltou a ficar disponível"
+  if (presente(body, "motivoIndisponibilidade")) {
+    dados.motivo_indisponibilidade =
+      body.motivoIndisponibilidade === null || body.motivoIndisponibilidade === ""
+        ? null
+        : parseEnumOpcional(body.motivoIndisponibilidade, MOTIVOS_INDISPONIBILIDADE, "motivoIndisponibilidade");
+  }
+  if (presente(body, "indisponivelDesde")) {
+    const desde = parseData(body.indisponivelDesde, "indisponivelDesde");
+    if (desde && desde > hojeISO()) {
+      throw ApiError.badRequest("indisponivelDesde não pode ser uma data futura.");
+    }
+    if (desde) dados.indisponivel_desde = desde;
+  }
+
   return dados;
 }
 
@@ -114,6 +130,11 @@ export function validarFiltros(query = {}) {
     ),
     disponivel: parseBooleanoOpcional(query.disponivel, "disponivel"),
     estagioVida: parseEnumOpcional(query.estagioVida, ESTAGIOS_VIDA, "estagioVida"),
+    motivoIndisponibilidade: parseEnumOpcional(
+      query.motivoIndisponibilidade,
+      MOTIVOS_INDISPONIBILIDADE,
+      "motivoIndisponibilidade"
+    ),
     busca: busca ?? undefined,
   };
 }

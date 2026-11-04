@@ -550,6 +550,44 @@ async function postCru(caminho, corpoTexto) {
   });
 
   // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 7 — Disponibilidade do animal no setor");
+  // ─────────────────────────────────────────────────────────────
+  await checa(7, "Animal em DESCARTE fica indisponivel com motivo DESCARTE (e nao volta por PATCH)", async () => {
+    // animaisCriados[0] foi para DESCARTE no bloco do Sprint 5
+    const { dados } = await api(`/ueps/${uepId}/animais/${animaisCriados[0]}`, { token: tokenAdmin, esperado: 200 });
+    assert(dados.disponivel === false && dados.motivo_indisponibilidade === "DESCARTE",
+      `esperado indisponivel/DESCARTE, veio ${dados.disponivel}/${dados.motivo_indisponibilidade}`);
+    assert(dados.indisponivel_desde, "indisponivel_desde deveria estar preenchido");
+    await api(`/ueps/${uepId}/animais/${animaisCriados[0]}`, { metodo: "PATCH", token: tokenAdmin, body: { disponivel: true }, esperado: 400 });
+  });
+
+  await checa(7, "Motivo deixa indisponivel; disponivel=false sem motivo vira OUTRO; disponivel=true limpa", async () => {
+    const url = `/ueps/${uepId}/animais/${animaisCriados[3]}`;
+    let r = await api(url, { metodo: "PATCH", token: tokenAdmin, body: { motivoIndisponibilidade: "QUARENTENA" }, esperado: 200 });
+    assert(r.dados.disponivel === false && r.dados.motivo_indisponibilidade === "QUARENTENA", "QUARENTENA nao aplicou");
+    r = await api(url, { metodo: "PATCH", token: tokenAdmin, body: { disponivel: true }, esperado: 200 });
+    assert(r.dados.disponivel === true && r.dados.motivo_indisponibilidade === null && r.dados.indisponivel_desde === null, "disponivel=true nao limpou");
+    r = await api(url, { metodo: "PATCH", token: tokenAdmin, body: { disponivel: false }, esperado: 200 });
+    assert(r.dados.motivo_indisponibilidade === "OUTRO", `sem motivo deveria virar OUTRO, veio ${r.dados.motivo_indisponibilidade}`);
+    await api(url, { metodo: "PATCH", token: tokenAdmin, body: { motivoIndisponibilidade: "SUMIU" }, esperado: 400 });
+  });
+
+  await checa(7, "GET disponibilidade resume o setor (totais, por motivo, por categoria)", async () => {
+    const { dados } = await api(`/ueps/${uepId}/animais/disponibilidade`, { token: tokenAlunoUep, esperado: 200 });
+    assert(dados.total === dados.disponiveis + dados.indisponiveis, "total != disponiveis + indisponiveis");
+    assert(dados.indisponiveis >= 2, `esperado ao menos 2 indisponiveis, veio ${dados.indisponiveis}`);
+    const somaMotivos = dados.por_motivo.reduce((acc, l) => acc + l.total, 0);
+    assert(somaMotivos === dados.indisponiveis, "soma por motivo diferente dos indisponiveis");
+    assert(dados.por_motivo.some((l) => l.motivo === "DESCARTE"), "motivo DESCARTE ausente");
+    const somaCat = dados.por_categoria.reduce((acc, l) => acc + l.total, 0);
+    assert(somaCat === dados.total, "soma por categoria diferente do total");
+    const { dados: lista } = await api(`/ueps/${uepId}/animais?motivoIndisponibilidade=OUTRO`, { token: tokenAdmin, esperado: 200 });
+    assert(lista.length === 1 && lista[0].id === animaisCriados[3], "filtro por motivo falhou");
+    // devolve o bezerro para disponivel (nao interfere nos blocos seguintes)
+    await api(`/ueps/${uepId}/animais/${animaisCriados[3]}`, { metodo: "PATCH", token: tokenAdmin, body: { disponivel: true }, esperado: 200 });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   console.log("\nHIERARQUIA — Diretoria -> Professor -> Equipe");
   // ─────────────────────────────────────────────────────────────
   const sufixo = Date.now();

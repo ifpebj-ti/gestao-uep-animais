@@ -24,6 +24,7 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`
 - Sprint 6: atributos genéticos dos animais — grau de sangue, pai e mãe (genealogia, `GET .../animais/:id/genealogia`), idade em meses e estágio de vida (CRIA/RECRIA/ADULTO) calculados; censo por estágio e filtro `?estagioVida=`
 - Sprint 6: regra de coerência entre categoria, sexo e fase reprodutiva (ex.: VACA exige fêmea; macho não fica PRENHE/LACTANTE/VAZIA)
+- Sprint 7: regra de disponibilidade do animal no setor — todo indisponível tem motivo (VENDIDO, OBITO, TRANSFERIDO, EM_TRATAMENTO, QUARENTENA, RESERVADO, DESCARTE, OUTRO) e data; animal em DESCARTE nunca fica disponível; resumo em `GET .../animais/disponibilidade` e filtro `?motivoIndisponibilidade=`
 
 - Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 ## [0.3.0] - 2026-09-30
