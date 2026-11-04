@@ -1,19 +1,20 @@
 import { animaisService } from "./animais.service.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
+import { resolverEscopo } from "../ueps/ueps.acesso.js";
+import { validarFiltros } from "./animais.validators.js";
 
-// Monta o objeto de filtros comum a partir de query params + :uepId da rota aninhada
 const MAX_LIMIT = 100;
 
-function parseFilters(req) {
-  const { categoria, sexo, statusReprodutivo, disponivel, busca } = req.query;
-  return {
-    uepId: req.params.uepId ?? req.query.uepId,
-    categoria,
-    sexo,
-    statusReprodutivo,
-    disponivel: disponivel === undefined ? undefined : disponivel === "true",
-    busca,
-  };
+/**
+ * UEPs que esta requisição enxerga:
+ *  - rota aninhada (/ueps/:uepId/animais): só aquela UEP (o requireUepAccess
+ *    já conferiu o acesso e deixou req.uepId);
+ *  - rota da raiz (/animais): as UEPs do usuário, ou só a do ?uepId= (que
+ *    precisa ser uma delas). Diretoria sem ?uepId= -> null (todas).
+ */
+async function escopoDe(req, uepIdPedido = req.query.uepId) {
+  if (req.uepId) return [req.uepId];
+  return resolverEscopo(req.user, uepIdPedido);
 }
 
 /**
@@ -31,53 +32,46 @@ function parsePagination(req) {
 
 export const animaisController = {
   list: asyncHandler(async (req, res) => {
-    const animais = await animaisService.list({
-      ...parseFilters(req),
-      ...parsePagination(req),
-    });
+    const filtros = validarFiltros(req.query);
+    const animais = await animaisService.list(await escopoDe(req), filtros, parsePagination(req));
     res.json(animais);
   }),
 
   getById: asyncHandler(async (req, res) => {
-    const animal = await animaisService.getById(req.params.id);
+    const animal = await animaisService.getById(await escopoDe(req, null), req.params.id);
     res.json(animal);
   }),
 
   // GET /animais/buscar?brinco=...&corteAustraliano=...&sisbov=...
   search: asyncHandler(async (req, res) => {
-    const { brinco, corteAustraliano, sisbov } = req.query;
-    const resultados = await animaisService.searchByIdentifier({
-      brinco,
-      corteAustraliano,
-      sisbov,
-      uepId: req.params.uepId ?? req.query.uepId,
-    });
+    const resultados = await animaisService.searchByIdentifier(await escopoDe(req), req.query);
     res.json(resultados);
   }),
 
   // GET /animais/censo -> contagem por categoria/sexo (Sprint 5)
   censo: asyncHandler(async (req, res) => {
-    const resultado = await animaisService.censo(parseFilters(req));
+    const resultado = await animaisService.censo(await escopoDe(req), validarFiltros(req.query));
     res.json(resultado);
   }),
 
   create: asyncHandler(async (req, res) => {
-    const payload = {
-      ...req.body,
-      uepId: req.params.uepId ?? req.body.uepId,
-      createdBy: req.user?.id,
-    };
-    const animal = await animaisService.create(payload);
+    const uepId = req.uepId ?? req.body?.uepId;
+    const animal = await animaisService.create(
+      await escopoDe(req, null),
+      uepId,
+      req.body,
+      req.user?.id
+    );
     res.status(201).json(animal);
   }),
 
   update: asyncHandler(async (req, res) => {
-    const animal = await animaisService.update(req.params.id, req.body);
+    const animal = await animaisService.update(await escopoDe(req, null), req.params.id, req.body);
     res.json(animal);
   }),
 
   remove: asyncHandler(async (req, res) => {
-    await animaisService.remove(req.params.id);
+    await animaisService.remove(await escopoDe(req, null), req.params.id);
     res.status(204).send();
   }),
 };

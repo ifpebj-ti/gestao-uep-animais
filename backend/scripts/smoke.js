@@ -445,6 +445,52 @@ async function postCru(caminho, corpoTexto) {
     });
   });
 
+  await checa(5, "Rota aninhada nao alcanca animal de outra UEP (GET/PATCH/DELETE -> 404)", async () => {
+    const { dados: deFora } = await api(`/ueps/${outraUepId}/animais`, { token: tokenAdmin, esperado: 200 });
+    assert(deFora.length > 0, "a outra UEP precisa ter ao menos 1 animal semeado");
+    const idFora = deFora[0].id;
+    await api(`/ueps/${uepId}/animais/${idFora}`, { token: tokenAdmin, esperado: 404 });
+    await api(`/ueps/${uepId}/animais/${idFora}`, { metodo: "PATCH", token: tokenAdmin, body: { observacoes: "x" }, esperado: 404 });
+    await api(`/ueps/${uepId}/animais/${idFora}`, { metodo: "DELETE", token: tokenAdmin, esperado: 404 });
+  });
+
+  await checa(5, "Rotas da raiz (/animais) ficam limitadas as UEPs do usuario", async () => {
+    const { dados } = await api("/animais", { token: tokenAlunoUep, esperado: 200 });
+    assert(dados.length === 6 && dados.every((a) => a.uep_id === uepId), `aluno deveria ver so os 6 da UEP ${uepId}`);
+    const { dados: censo } = await api("/animais/censo", { token: tokenAlunoUep, esperado: 200 });
+    assert(censo.total === 6, `censo do aluno deveria contar 6, veio ${censo.total}`);
+    await api(`/animais?uepId=${outraUepId}`, { token: tokenAlunoUep, esperado: 403 });
+    const { dados: deFora } = await api(`/ueps/${outraUepId}/animais`, { token: tokenAdmin, esperado: 200 });
+    await api(`/animais/${deFora[0].id}`, { token: tokenAlunoUep, esperado: 404 });
+    const { dados: semUep } = await api("/animais", { token: tokenAluno, esperado: 200 });
+    assert(Array.isArray(semUep) && semUep.length === 0, "conta sem UEP deveria receber lista vazia");
+  });
+
+  await checa(5, "Filtros e ids invalidos devolvem 400 (e nao 500)", async () => {
+    await api(`/ueps/${uepId}/animais?categoria=PEGASO`, { token: tokenAdmin, esperado: 400 });
+    await api(`/ueps/${uepId}/animais/censo?disponivel=talvez`, { token: tokenAdmin, esperado: 400 });
+    await api(`/ueps/${uepId}/animais/abc`, { token: tokenAdmin, esperado: 400 });
+    await api(`/animais?uepId=abc`, { token: tokenAdmin, esperado: 400 });
+  });
+
+  await checa(5, "PATCH com null limpa campo opcional (observacoes)", async () => {
+    const id = animaisCriados[1];
+    await api(`/ueps/${uepId}/animais/${id}`, { metodo: "PATCH", token: tokenAdmin, body: { observacoes: "temporaria" }, esperado: 200 });
+    const { dados } = await api(`/ueps/${uepId}/animais/${id}`, { metodo: "PATCH", token: tokenAdmin, body: { observacoes: null }, esperado: 200 });
+    assert(dados.observacoes === null, `observacoes deveria ter sido limpa, veio ${dados.observacoes}`);
+    assert(dados.categoria === "VACA", "PATCH parcial nao pode mexer nos outros campos");
+  });
+
+  await checa(5, "Brinco repetido na UEP devolve 409 com mensagem clara; nascimento futuro 400", async () => {
+    const { dados } = await api(`/ueps/${uepId}/animais`, {
+      metodo: "POST", token: tokenAdmin, body: { brinco: "SMK-001", categoria: "VACA", sexo: "FEMEA" }, esperado: 409,
+    });
+    assert(/brinco/i.test(dados.error), `mensagem deveria citar o brinco: ${dados.error}`);
+    await api(`/ueps/${uepId}/animais`, {
+      metodo: "POST", token: tokenAdmin, body: { brinco: "SMK-FUT", categoria: "VACA", sexo: "FEMEA", dataNascimento: "2999-01-01" }, esperado: 400,
+    });
+  });
+
   // ─────────────────────────────────────────────────────────────
   console.log("\nHIERARQUIA — Diretoria -> Professor -> Equipe");
   // ─────────────────────────────────────────────────────────────

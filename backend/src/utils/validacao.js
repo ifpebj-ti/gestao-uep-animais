@@ -39,3 +39,40 @@ export function parseBooleanoOpcional(value, label) {
   if (value === false || value === "false") return false;
   throw ApiError.badRequest(`${label} deve ser true ou false.`);
 }
+
+export function parseTexto(value, label, { max, obrigatorio = false } = {}) {
+  if (value === undefined || value === null) {
+    if (obrigatorio) throw ApiError.badRequest(`${label} é obrigatório.`);
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw ApiError.badRequest(`${label} deve ser um texto.`);
+  }
+  const texto = value.trim();
+  if (!texto) {
+    if (obrigatorio) throw ApiError.badRequest(`${label} é obrigatório.`);
+    return null;
+  }
+  if (max && texto.length > max) {
+    throw ApiError.badRequest(`${label} deve ter no máximo ${max} caracteres.`);
+  }
+  return texto;
+}
+
+/** Aceita "AAAA-MM-DD" (data de calendario valida). Ausente -> null (banco usa hoje). */
+export function parseData(value, label = "data") {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw ApiError.badRequest(`${label} inválida. Use o formato AAAA-MM-DD.`);
+  }
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) {
+    throw ApiError.badRequest(`${label} inválida. Use uma data de calendário existente.`);
+  }
+  return value;
+}
+
+/** Data de hoje (AAAA-MM-DD) no fuso de Brasília, para comparar com datas do usuário. */
+export function hojeISO(agora = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Recife" }).format(agora);
+}
