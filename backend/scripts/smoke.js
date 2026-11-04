@@ -1,5 +1,5 @@
 /**
- * Smoke test dos entregaveis de backend das Sprints 3, 4, 5, 10 e 12.
+ * Smoke test dos entregaveis de backend das Sprints 3 a 14.
  *
  *   node backend/scripts/smoke.js
  *
@@ -94,7 +94,7 @@ async function postCru(caminho, corpoTexto) {
 }
 
 (async () => {
-  console.log(`\nSmoke test — Sprints 3, 4, 5, 10, 12 + hierarquia de acesso`);
+  console.log(`\nSmoke test — Sprints 3 a 14 + hierarquia de acesso`);
   console.log(`API: ${BASE}\n`);
 
   // Sanidade: a API responde?
@@ -1205,6 +1205,30 @@ async function postCru(caminho, corpoTexto) {
   });
 
   // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 14 — Calendario de atividades");
+  // ─────────────────────────────────────────────────────────────
+  let atividadeId = null;
+
+  await checa(14, "ALUNO da UEP registra vacina de um animal; aparece no ano", async () => {
+    const { dados } = await api(`/ueps/${uepId}/atividades`, {
+      metodo: "POST", token: tokenAlunoUep,
+      body: { tipo: "VACINA", data: "2026-08-15", animalId: animaisCriados[1], observacao: "aftosa" },
+      esperado: 201,
+    });
+    atividadeId = dados.id;
+    assert(dados.animal_brinco === "SMK-002" && dados.data === "2026-08-15", `atividade errada: ${JSON.stringify(dados)}`);
+    const { dados: ano } = await api(`/ueps/${uepId}/atividades?ano=2026`, { token: tokenProfUep, esperado: 200 });
+    assert(ano.some((a) => a.id === atividadeId && a.criado_por_nome === "Aluno UEP Smoke"), "atividade nao apareceu no calendario");
+  });
+
+  await checa(14, "Regras: vacina sem animal 400; UEP alheia 403; so Professor ou autor alteram", async () => {
+    await api(`/ueps/${uepId}/atividades`, { metodo: "POST", token: tokenAlunoUep, body: { tipo: "VACINA", data: "2026-08-16" }, esperado: 400 });
+    await api(`/ueps/${outraUepId}/atividades`, { token: tokenAlunoUep, esperado: 403 });
+    await api(`/ueps/${uepId}/atividades/${atividadeId}`, { metodo: "PATCH", token: tokenProfUep, body: { observacao: "aftosa (2a dose)" }, esperado: 200 });
+    await api(`/ueps/${uepId}/atividades/${atividadeId}`, { metodo: "DELETE", token: tokenAlunoUep, esperado: 204 });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   console.log("\nLimpeza");
   // ─────────────────────────────────────────────────────────────
   await checa(0, "Remove os dados criados pelo smoke test", async () => {
@@ -1246,5 +1270,5 @@ async function postCru(caminho, corpoTexto) {
     process.exit(1);
   }
 
-  console.log("\n\x1b[32mEntregaveis de backend das Sprints 3, 4, 5, 10 e 12 verificados.\x1b[0m\n");
+  console.log("\n\x1b[32mEntregaveis de backend das Sprints 3 a 14 verificados.\x1b[0m\n");
 })();

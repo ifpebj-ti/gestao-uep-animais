@@ -19,3 +19,6 @@ __pycache__/
 .DS_Store
 
 loadtest/resultado*.json
+
+# Cobertura de testes (c8)
+coverage/

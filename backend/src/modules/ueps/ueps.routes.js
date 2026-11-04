@@ -7,6 +7,7 @@ import { ROLES } from "../../config/roles.js";
 import animaisRouter from "../animais/animais.routes.js";
 import estoqueRouter from "../estoque/estoque.routes.js";
 import comprasRouter from "../compras/compras.routes.js";
+import atividadesRouter from "../atividades/atividades.routes.js";
 
 const router = Router();
 
@@ -34,6 +35,10 @@ router.use("/:uepId/animais", animaisRouter);
 // Apoio as compras (Sprint 12): necessidades consolidadas da UEP
 // GET /api/ueps/:uepId/compras/necessidades?dias=30
 router.use("/:uepId/compras", comprasRouter);
+
+// Calendario de atividades dos animais (Sprint 14)
+// GET/POST /api/ueps/:uepId/atividades, PATCH/DELETE /api/ueps/:uepId/atividades/:id
+router.use("/:uepId/atividades", atividadesRouter);
 
 // Estoque de insumos (racao) sempre isolado por UEP (Sprint 10):
 // GET/POST /api/ueps/:uepId/insumos

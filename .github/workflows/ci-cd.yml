@@ -95,6 +95,8 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Sem DB_HOST os testes de integracao (test/integration) sao pulados;
+      # eles rodam com cobertura no job "migrate", que tem Postgres.
       - name: Testes unitarios do backend
         working-directory: ./backend
         run: |
@@ -180,6 +182,29 @@ jobs:
           EXIT=$?
           kill $BACKEND_PID
           exit $EXIT
+
+      # Sprint 14: testes unitarios + de integracao (API real contra este
+      # Postgres) com cobertura medida pelo c8. Falha se a cobertura de
+      # linhas/funcoes de backend/src ficar abaixo de 70% (ver .c8rc.json).
+      - name: Testes de integracao e cobertura (minimo 70%)
+        working-directory: ./backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: gestao_uep
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          SEED_ADMIN_EMAIL: admin@ifpe.edu.br
+          SEED_ADMIN_PASSWORD: admin123
+        run: npm run test:coverage
+
+      - name: Publicar relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-backend
+          path: backend/coverage/
+          if-no-files-found: ignore
 
   # 5 e 6. BUILD DA IMAGEM + ANALISE (Trivy) + PUBLICACAO NO REGISTRY (GHCR)
   docker:
