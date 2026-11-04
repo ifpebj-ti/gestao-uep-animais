@@ -19,6 +19,8 @@ router.patch(
 );
 
 router.get("/estoque/movimentacoes", authenticate, estoqueController.listMovimentacoes);
+// Sprint 11: insumos em nível crítico/atenção desta UEP
+router.get("/estoque/alertas", authenticate, estoqueController.alertasDaUep);
 router.post(
   "/estoque/movimentacoes",
   authenticate,
@@ -27,3 +29,7 @@ router.post(
 );
 
 export default router;
+
+// Montado em /api/estoque: alertas de todas as UEPs que o usuário enxerga.
+export const estoqueRaizRouter = Router();
+estoqueRaizRouter.get("/alertas", authenticate, estoqueController.alertasGerais);

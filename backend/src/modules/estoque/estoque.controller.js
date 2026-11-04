@@ -1,5 +1,6 @@
 import { estoqueService } from "./estoque.service.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
+import { uepsAcessiveis } from "../ueps/ueps.acesso.js";
 
 export const estoqueController = {
   listInsumos: asyncHandler(async (req, res) => {
@@ -9,6 +10,15 @@ export const estoqueController = {
   createInsumo: asyncHandler(async (req, res) => {
     const insumo = await estoqueService.createInsumo(req.params.uepId, req.body, req.user?.id);
     res.status(201).json(insumo);
+  }),
+
+  alertasDaUep: asyncHandler(async (req, res) => {
+    res.json(await estoqueService.alertasDaUep(req.params.uepId));
+  }),
+
+  // Rota da raiz: só as UEPs do usuário (Diretoria: todas)
+  alertasGerais: asyncHandler(async (req, res) => {
+    res.json(await estoqueService.alertasGerais(await uepsAcessiveis(req.user)));
   }),
 
   getInsumo: asyncHandler(async (req, res) => {

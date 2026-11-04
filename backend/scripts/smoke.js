@@ -973,6 +973,44 @@ async function postCru(caminho, corpoTexto) {
   });
 
   // ─────────────────────────────────────────────────────────────
+  console.log("\nSPRINT 11 — Alerta de nivel critico de estoque");
+  // ─────────────────────────────────────────────────────────────
+  await checa(11, "Insumos ja saem com previsao_dias e nivel_alerta", async () => {
+    for (const body of [
+      { nome: "Alerta critico", unidade: "kg", saldoInicial: 2, estoqueMinimo: 5, consumoMedioDiario: 1 },
+      { nome: "Alerta atencao", unidade: "kg", saldoInicial: 10, estoqueMinimo: 2, consumoMedioDiario: 3 },
+    ]) {
+      await api(`${base}/insumos`, { metodo: "POST", token: tokenAdmin, body, esperado: 201 });
+    }
+    const { dados } = await api(`${base}/insumos`, { token: tokenAlunoUep, esperado: 200 });
+    const crit = dados.find((i) => i.nome === "Alerta critico");
+    const aten = dados.find((i) => i.nome === "Alerta atencao");
+    assert(crit.nivel_alerta === "CRITICO" && crit.previsao_dias === 2, `critico errado: ${JSON.stringify(crit)}`);
+    assert(aten.nivel_alerta === "ATENCAO" && aten.previsao_dias === 3, `atencao errado: ${JSON.stringify(aten)}`);
+  });
+
+  await checa(11, "GET /ueps/:id/estoque/alertas lista so os alertas, mais grave primeiro", async () => {
+    const { dados } = await api(`${base}/estoque/alertas`, { token: tokenAlunoUep, esperado: 200 });
+    assert(dados.uep_id === uepId, "uep_id errado");
+    assert(dados.criticos >= 1 && dados.atencao >= 1, `contadores: ${dados.criticos}/${dados.atencao}`);
+    assert(dados.alertas.length === dados.criticos + dados.atencao, "alertas deveria ter so CRITICO/ATENCAO");
+    assert(dados.alertas[0].nivel === "CRITICO", "o primeiro alerta deveria ser CRITICO");
+    const crit = dados.alertas.find((a) => a.nome === "Alerta critico");
+    assert(crit && /nível mínimo ou abaixo/.test(crit.mensagem), `mensagem: ${crit && crit.mensagem}`);
+    await api(`/ueps/${outraUepId}/estoque/alertas`, { token: tokenAlunoUep, esperado: 403 });
+  });
+
+  await checa(11, "GET /estoque/alertas (painel) respeita as UEPs do usuario", async () => {
+    const { dados: doAluno } = await api("/estoque/alertas", { token: tokenAlunoUep, esperado: 200 });
+    assert(doAluno.alertas.every((a) => a.uep_id === uepId), "aluno viu alerta de outra UEP");
+    assert(doAluno.por_uep.length === 1 && doAluno.por_uep[0].uep_id === uepId, "por_uep do aluno deveria ter so a UEP dele");
+    const { dados: daDiretoria } = await api("/estoque/alertas", { token: tokenAdmin, esperado: 200 });
+    assert(daDiretoria.por_uep.some((u) => u.uep_id === uepId), "Diretoria deveria ver a UEP do smoke no painel");
+    const { dados: semUep } = await api("/estoque/alertas", { token: tokenAluno, esperado: 200 });
+    assert(semUep.total_insumos === 0 && semUep.alertas.length === 0, "conta sem UEP nao deveria ver alertas");
+  });
+
+  // ─────────────────────────────────────────────────────────────
   console.log("\nSPRINT 12 — Apoio as compras (necessidades consolidadas)");
   // ─────────────────────────────────────────────────────────────
   const necessidadesUrl = `/ueps/${uepId}/compras/necessidades`;
