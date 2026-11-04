@@ -36,6 +36,24 @@ export const estoqueRepository = {
     return rows;
   },
 
+  /** Insumos de várias UEPs (null = todas), com o nome da UEP — painel de alertas. */
+  async findInsumosDasUeps(uepIds) {
+    const params = [];
+    let where = "";
+    if (Array.isArray(uepIds)) {
+      params.push(uepIds);
+      where = "WHERE i.uep_id = ANY($1::int[])";
+    }
+    const { rows } = await query(
+      `SELECT ${INSUMO_COLUMNS}, u.nome AS uep_nome
+       FROM insumos i JOIN ueps u ON u.id = i.uep_id
+       ${where}
+       ORDER BY u.nome, i.nome, i.id`,
+      params
+    );
+    return rows;
+  },
+
   async findInsumo(uepId, insumoId) {
     const { rows } = await query(
       `SELECT ${INSUMO_COLUMNS} FROM insumos i WHERE i.id = $1 AND i.uep_id = $2`,

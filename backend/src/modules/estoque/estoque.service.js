@@ -4,6 +4,7 @@ import { ApiError } from "../../utils/ApiError.js";
 import { MOVIMENTACAO_TIPOS } from "../../config/enums.js";
 import { parseId, parseNumero, parseTexto, parseData } from "./estoque.validators.js";
 import { hojeISO } from "../../utils/validacao.js";
+import { avaliarNivel, montarAlertas, resumirNiveis } from "./estoque.alertas.js";
 
 async function assertUepExists(uepId) {
   const uep = await uepsRepository.findById(uepId);
@@ -23,7 +24,34 @@ export const estoqueService = {
   async listInsumos(uepIdRaw) {
     const uepId = parseId(uepIdRaw, "uepId");
     await assertUepExists(uepId);
-    return estoqueRepository.findInsumos(uepId);
+    // Sprint 11: cada insumo já sai com previsao_dias e nivel_alerta
+    return (await estoqueRepository.findInsumos(uepId)).map(avaliarNivel);
+  },
+
+  // GET /ueps/:uepId/estoque/alertas (Sprint 11)
+  async alertasDaUep(uepIdRaw) {
+    const uepId = parseId(uepIdRaw, "uepId");
+    await assertUepExists(uepId);
+    const insumos = (await estoqueRepository.findInsumos(uepId)).map(avaliarNivel);
+    return { uep_id: uepId, ...resumirNiveis(insumos), alertas: montarAlertas(insumos) };
+  },
+
+  // GET /estoque/alertas (Sprint 11): todas as UEPs que o usuário enxerga
+  // (escopo null = todas, Diretoria), com o resumo por UEP para o painel.
+  async alertasGerais(escopo) {
+    const insumos = (await estoqueRepository.findInsumosDasUeps(escopo)).map(avaliarNivel);
+    const porUep = new Map();
+    for (const i of insumos) {
+      if (!porUep.has(i.uep_id)) porUep.set(i.uep_id, { uep_id: i.uep_id, uep_nome: i.uep_nome, itens: [] });
+      porUep.get(i.uep_id).itens.push(i);
+    }
+    return {
+      ...resumirNiveis(insumos),
+      por_uep: [...porUep.values()]
+        .map(({ itens, ...uep }) => ({ ...uep, ...resumirNiveis(itens) }))
+        .filter((u) => u.criticos + u.atencao > 0),
+      alertas: montarAlertas(insumos),
+    };
   },
 
   async createInsumo(uepIdRaw, body = {}, createdBy) {
@@ -53,7 +81,7 @@ export const estoqueService = {
     const insumoId = parseId(insumoIdRaw, "insumoId");
     const insumo = await estoqueRepository.findInsumo(uepId, insumoId);
     if (!insumo) throw ApiError.notFound("Insumo não encontrado nesta UEP.");
-    return insumo;
+    return avaliarNivel(insumo);
   },
 
   // PATCH /ueps/:uepId/insumos/:id — só o cadastro; saldo muda por movimentação.
@@ -75,7 +103,7 @@ export const estoqueService = {
 
     const atualizado = await estoqueRepository.updateInsumo(uepId, insumoId, campos);
     if (!atualizado) throw ApiError.notFound("Insumo não encontrado nesta UEP.");
-    return atualizado;
+    return avaliarNivel(atualizado);
   },
 
   async listMovimentacoes(uepIdRaw, query = {}) {

@@ -20,21 +20,26 @@
  *                                  status DESCARTE (reposicao 1 para 1).
  */
 
+import {
+  LIMITE_ATENCAO_DIAS,
+  calcularPrevisaoDias,
+  classificarNivel,
+} from "../estoque/estoque.alertas.js";
+
 export const DIAS_PADRAO = 30;
 export const DIAS_MAX = 365;
-export const LIMITE_ATENCAO_DIAS = 7;
+// A previsão e o limite de atenção vêm da regra de alerta do Sprint 11
+// (estoque.alertas.js): estoque e compras nunca discordam sobre o que é crítico.
+export { LIMITE_ATENCAO_DIAS, calcularPrevisaoDias };
+
+// Nível do alerta -> urgência do contrato de compras (nomes mantidos).
+const URGENCIA_POR_NIVEL = Object.freeze({ CRITICO: "CRITICA", ATENCAO: "ATENCAO", NORMAL: "OK" });
 
 const ORDEM_URGENCIA = Object.freeze({ CRITICA: 0, ATENCAO: 1, OK: 2 });
 
 // Evita ruido de ponto flutuante (ex.: 0.1 * 3) mantendo as 3 casas do banco.
 function arredondar(n) {
   return Math.round(n * 1000) / 1000;
-}
-
-export function calcularPrevisaoDias(saldoAtual, consumoMedioDiario) {
-  const consumo = Number(consumoMedioDiario);
-  if (!(consumo > 0)) return null;
-  return Math.floor(Number(saldoAtual) / consumo);
 }
 
 export function calcularQuantidadeSugerida({ saldoAtual, estoqueMinimo, consumoMedioDiario, dias }) {
@@ -44,9 +49,7 @@ export function calcularQuantidadeSugerida({ saldoAtual, estoqueMinimo, consumoM
 }
 
 export function classificarUrgencia({ saldoAtual, estoqueMinimo, previsaoDias }) {
-  if (Number(saldoAtual) <= Number(estoqueMinimo)) return "CRITICA";
-  if (previsaoDias !== null && previsaoDias < LIMITE_ATENCAO_DIAS) return "ATENCAO";
-  return "OK";
+  return URGENCIA_POR_NIVEL[classificarNivel({ saldoAtual, estoqueMinimo, previsaoDias })];
 }
 
 /** Monta a linha de necessidade de um insumo (formato snake_case do contrato). */

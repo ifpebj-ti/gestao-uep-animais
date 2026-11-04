@@ -27,6 +27,7 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 6: regra de coerência entre categoria, sexo e fase reprodutiva (ex.: VACA exige fêmea; macho não fica PRENHE/LACTANTE/VAZIA)
 - Sprint 7: regra de disponibilidade do animal no setor — todo indisponível tem motivo (VENDIDO, OBITO, TRANSFERIDO, EM_TRATAMENTO, QUARENTENA, RESERVADO, DESCARTE, OUTRO) e data; animal em DESCARTE nunca fica disponível; resumo em `GET .../animais/disponibilidade` e filtro `?motivoIndisponibilidade=`
 - Sprint 10: `GET/PATCH /api/ueps/:uepId/insumos/:id` para consultar e editar o cadastro do insumo (nome, unidade, estoque mínimo, consumo médio); o saldo continua mudando só por movimentação
+- Sprint 11: regra de alerta de nível crítico de estoque (CRITICO = saldo no mínimo ou abaixo; ATENCAO = acaba em menos de 7 dias). Insumos saem com `nivel_alerta` e `previsao_dias`; novos `GET /api/ueps/:uepId/estoque/alertas` e `GET /api/estoque/alertas` (painel com as UEPs do usuário); compras passa a usar a mesma regra
 
 - Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 ## [0.3.0] - 2026-09-30
