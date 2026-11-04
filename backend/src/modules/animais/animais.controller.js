@@ -54,6 +54,11 @@ export const animaisController = {
     res.json(resultado);
   }),
 
+  // GET /animais/:id/genealogia (Sprint 6)
+  genealogia: asyncHandler(async (req, res) => {
+    res.json(await animaisService.genealogia(await escopoDe(req, null), req.params.id));
+  }),
+
   create: asyncHandler(async (req, res) => {
     const uepId = req.uepId ?? req.body?.uepId;
     const animal = await animaisService.create(

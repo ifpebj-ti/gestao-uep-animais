@@ -1,13 +1,21 @@
 import { query } from "../../config/db.js";
 import { ApiError } from "../../utils/ApiError.js";
+import { SQL_ESTAGIO_VIDA, SQL_IDADE_MESES } from "./animais.genetica.js";
 
+// idade_meses e estagio_vida são calculados na consulta (Sprint 6);
+// pai_brinco/mae_brinco vêm do próprio rebanho (genealogia).
 const BASE_SELECT = `
   SELECT a.id, a.uep_id, a.categoria, a.sexo, a.raca, a.data_nascimento,
          a.status_reprodutivo, a.brinco, a.corte_australiano, a.sisbov,
          a.disponivel, a.observacoes, a.created_by, a.created_at, a.updated_at,
+         a.grau_sangue, a.pai_id, p.brinco AS pai_brinco, a.mae_id, m.brinco AS mae_brinco,
+         ${SQL_IDADE_MESES} AS idade_meses,
+         ${SQL_ESTAGIO_VIDA} AS estagio_vida,
          u.nome AS uep_nome
   FROM animais a
   JOIN ueps u ON u.id = a.uep_id
+  LEFT JOIN animais p ON p.id = a.pai_id
+  LEFT JOIN animais m ON m.id = a.mae_id
 `;
 
 // Colunas que o service pode gravar (vêm de animais.validators.js).
@@ -22,6 +30,9 @@ const COLUNAS_GRAVAVEIS = new Set([
   "sisbov",
   "disponivel",
   "observacoes",
+  "grau_sangue",
+  "pai_id",
+  "mae_id",
 ]);
 
 // Escapa % e _ para a busca livre não virar curinga sem querer.
@@ -37,7 +48,7 @@ function escaparLike(texto) {
  * [] = nenhuma (a consulta não devolve nada).
  */
 function buildFilters(filters = {}) {
-  const { uepIds, categoria, sexo, statusReprodutivo, disponivel, busca } = filters;
+  const { uepIds, categoria, sexo, statusReprodutivo, disponivel, estagioVida, busca } = filters;
   const conditions = [];
   const params = [];
 
@@ -60,6 +71,10 @@ function buildFilters(filters = {}) {
   if (disponivel !== undefined) {
     params.push(disponivel);
     conditions.push(`a.disponivel = $${params.length}`);
+  }
+  if (estagioVida) {
+    params.push(estagioVida);
+    conditions.push(`(${SQL_ESTAGIO_VIDA}) = $${params.length}`);
   }
   // Busca livre por identificador: brinco, corte australiano ou SISBOV
   if (busca) {
@@ -171,6 +186,31 @@ export const animaisRepository = {
        GROUP BY COALESCE(a.raca, 'Nao informada')
        ORDER BY total DESC, raca`,
       params
+    );
+    return rows;
+  },
+
+  // Censo: contagem por estágio de vida (Sprint 6). Sem nascimento e
+  // categoria OUTRO, o estágio fica "NAO_INFORMADO".
+  async countByEstagioVida(filters) {
+    const { where, params } = buildFilters(filters);
+    const { rows } = await query(
+      `SELECT COALESCE(${SQL_ESTAGIO_VIDA}, 'NAO_INFORMADO') AS estagio_vida, COUNT(*)::int AS total
+       FROM animais a
+       ${where}
+       GROUP BY 1
+       ORDER BY 1`,
+      params
+    );
+    return rows;
+  },
+
+  // Filhos de um animal (como pai ou como mãe), do mais novo para o mais velho.
+  async findFilhos(id) {
+    const { rows } = await query(
+      `${BASE_SELECT} WHERE a.pai_id = $1 OR a.mae_id = $1
+       ORDER BY a.data_nascimento DESC NULLS LAST, a.id DESC`,
+      [id]
     );
     return rows;
   },

@@ -4,7 +4,9 @@ import {
   ANIMAL_SEXOS,
   STATUS_REPRODUTIVOS,
 } from "../../config/enums.js";
+import { ESTAGIOS_VIDA } from "./animais.genetica.js";
 import {
+  parseId,
   parseEnumOpcional,
   parseBooleanoOpcional,
   parseTexto,
@@ -29,7 +31,11 @@ const CAMPOS_TEXTO = {
   corteAustraliano: { coluna: "corte_australiano", max: 50 },
   sisbov: { coluna: "sisbov", max: 15 },
   observacoes: { coluna: "observacoes", max: 2000 },
+  grauSangue: { coluna: "grau_sangue", max: 30 },
 };
+
+// genealogia (Sprint 6): id do pai/mãe; null ou "" desfaz o vínculo
+const CAMPOS_PARENTESCO = { paiId: "pai_id", maeId: "mae_id" };
 
 // obrigatórios no banco: no PATCH, null/"" é tratado como "não mexer"
 const CAMPOS_ENUM = {
@@ -77,6 +83,12 @@ export function validarAnimal(body = {}, { parcial = false } = {}) {
     if (presente(body, chave)) dados[def.coluna] = parseTexto(body[chave], chave, { max: def.max });
   }
 
+  for (const [chave, coluna] of Object.entries(CAMPOS_PARENTESCO)) {
+    if (!presente(body, chave)) continue;
+    const valor = body[chave];
+    dados[coluna] = valor === null || valor === "" ? null : parseId(valor, chave);
+  }
+
   if (presente(body, "dataNascimento")) {
     dados.data_nascimento = parseDataNascimento(body.dataNascimento);
   }
@@ -101,6 +113,7 @@ export function validarFiltros(query = {}) {
       "statusReprodutivo"
     ),
     disponivel: parseBooleanoOpcional(query.disponivel, "disponivel"),
+    estagioVida: parseEnumOpcional(query.estagioVida, ESTAGIOS_VIDA, "estagioVida"),
     busca: busca ?? undefined,
   };
 }

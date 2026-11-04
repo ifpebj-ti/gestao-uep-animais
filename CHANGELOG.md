@@ -18,9 +18,12 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 3: login aceita o e-mail com maiúsculas/espaços; JSON malformado no corpo devolve 400 em vez de 500; senha mínima de 6 caracteres também no autocadastro
 - Sprint 4: id de UEP inválido (`/ueps/abc`) e filtros fora do enum devolvem 400 em vez de 500
 - Sprint 5: PATCH de animal consegue limpar campos opcionais (ex.: apagar as observações); filtros do censo validados (400); brinco/SISBOV repetido devolve 409 com mensagem clara; data de nascimento futura é recusada
+- Sprint 6: datas (`DATE`) passam a sair da API como `AAAA-MM-DD`, sem depender do fuso do servidor
 
 ### Adicionado
 - Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`
+- Sprint 6: atributos genéticos dos animais — grau de sangue, pai e mãe (genealogia, `GET .../animais/:id/genealogia`), idade em meses e estágio de vida (CRIA/RECRIA/ADULTO) calculados; censo por estágio e filtro `?estagioVida=`
+- Sprint 6: regra de coerência entre categoria, sexo e fase reprodutiva (ex.: VACA exige fêmea; macho não fica PRENHE/LACTANTE/VAZIA)
 
 - Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 ## [0.3.0] - 2026-09-30

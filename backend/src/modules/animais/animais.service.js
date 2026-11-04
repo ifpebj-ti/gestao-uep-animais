@@ -3,6 +3,7 @@ import { uepsRepository } from "../ueps/ueps.repository.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { parseId, parseTexto } from "../../utils/validacao.js";
 import { validarAnimal } from "./animais.validators.js";
+import { validarCoerencia, validarGenealogia } from "./animais.genetica.js";
 
 /*
  * Todas as operações recebem `escopo`: a lista de UEPs que a requisição pode
@@ -25,6 +26,26 @@ async function carregarNoEscopo(escopo, idRaw) {
     throw ApiError.notFound("Animal não encontrado");
   }
   return animal;
+}
+
+/**
+ * Regras do Sprint 6 sobre o estado FINAL do animal (o que já existia + o
+ * que mudou): categoria x sexo x fase reprodutiva e, quando pai/mãe ou a
+ * data de nascimento mudam, a genealogia. Pai e mãe precisam ser da mesma UEP.
+ */
+async function validarRegrasGeneticas(final, mudou) {
+  validarCoerencia(final);
+
+  const mexeuNaGenealogia = ["pai_id", "mae_id", "data_nascimento"].some((c) => c in mudou);
+  if (!mexeuNaGenealogia || (!final.pai_id && !final.mae_id)) return;
+
+  const buscarNaUep = async (id) => {
+    if (!id) return null;
+    const animal = await animaisRepository.findById(id);
+    return animal && Number(animal.uep_id) === Number(final.uep_id) ? animal : null;
+  };
+  const [pai, mae] = await Promise.all([buscarNaUep(final.pai_id), buscarNaUep(final.mae_id)]);
+  validarGenealogia(final, { pai, mae, paiId: final.pai_id, maeId: final.mae_id });
 }
 
 export const animaisService = {
@@ -73,12 +94,13 @@ export const animaisService = {
   // Censo: total de animais por categoria/sexo, com os mesmos filtros da listagem
   async censo(escopo, filtros = {}) {
     const consulta = { ...filtros, uepIds: escopo };
-    const [porCategoria, porRaca, total] = await Promise.all([
+    const [porCategoria, porRaca, porEstagioVida, total] = await Promise.all([
       animaisRepository.countByCategoria(consulta),
       animaisRepository.countByRaca(consulta),
+      animaisRepository.countByEstagioVida(consulta),
       animaisRepository.countTotal(consulta),
     ]);
-    return { total, porCategoria, porRaca };
+    return { total, porCategoria, porRaca, porEstagioVida };
   },
 
   /** uepIdRaw: o :uepId da rota aninhada ou o uepId do corpo (rota da raiz). */
@@ -95,13 +117,26 @@ export const animaisService = {
     const uep = await uepsRepository.findById(uepId);
     if (!uep) throw ApiError.notFound(`UEP ${uepId} não encontrada`);
 
+    await validarRegrasGeneticas({ ...dados, uep_id: uepId }, dados);
     return animaisRepository.create({ ...dados, uep_id: uepId, created_by: createdBy ?? null });
   },
 
   async update(escopo, id, body) {
     const atual = await carregarNoEscopo(escopo, id);
     const dados = validarAnimal(body, { parcial: true });
+    await validarRegrasGeneticas({ ...atual, ...dados }, dados);
     return animaisRepository.update(atual.id, dados);
+  },
+
+  // GET .../animais/:id/genealogia -> o animal, pai, mãe e filhos (Sprint 6)
+  async genealogia(escopo, id) {
+    const animal = await carregarNoEscopo(escopo, id);
+    const [pai, mae, filhos] = await Promise.all([
+      animal.pai_id ? animaisRepository.findById(animal.pai_id) : null,
+      animal.mae_id ? animaisRepository.findById(animal.mae_id) : null,
+      animaisRepository.findFilhos(animal.id),
+    ]);
+    return { animal, pai, mae, filhos };
   },
 
   async remove(escopo, id) {

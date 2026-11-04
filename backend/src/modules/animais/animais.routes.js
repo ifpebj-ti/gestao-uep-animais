@@ -14,6 +14,7 @@ router.get("/buscar", animaisController.search);
 
 router.get("/", animaisController.list);
 router.get("/:id", animaisController.getById);
+router.get("/:id/genealogia", animaisController.genealogia);
 router.post("/", allowWriteOrReadOnly, animaisController.create);
 router.patch("/:id", allowWriteOrReadOnly, animaisController.update);
 router.delete("/:id", allowWriteOrReadOnly, animaisController.remove);
