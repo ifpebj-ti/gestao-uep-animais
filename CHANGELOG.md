@@ -12,10 +12,12 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 3: cada requisição confere se a conta do token ainda existe e está ativa, e usa o papel atual do banco
 - Sprint 4: isolamento por UEP no backend — dados em `/api/ueps/:uepId/*` (animais, estoque, compras) só para quem tem acesso à UEP (Diretoria: todas; Professor: as concedidas; equipe: a própria), senão 403
 - Sprint 4: criar, editar e excluir UEP passa a ser exclusivo da Diretoria (ADMIN)
+- Sprint 5: animais de outra UEP não são mais alcançáveis pela rota de um setor (`/ueps/:uepId/animais/:id` → 404) e as rotas da raiz (`/api/animais`) só mostram as UEPs do usuário
 
 ### Corrigido
 - Sprint 3: login aceita o e-mail com maiúsculas/espaços; JSON malformado no corpo devolve 400 em vez de 500; senha mínima de 6 caracteres também no autocadastro
 - Sprint 4: id de UEP inválido (`/ueps/abc`) e filtros fora do enum devolvem 400 em vez de 500
+- Sprint 5: PATCH de animal consegue limpar campos opcionais (ex.: apagar as observações); filtros do censo validados (400); brinco/SISBOV repetido devolve 409 com mensagem clara; data de nascimento futura é recusada
 
 ### Adicionado
 - Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`

@@ -3,8 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { parseId } from "../utils/validacao.js";
 import { ROLES } from "../config/roles.js";
 import { uepsRepository } from "../modules/ueps/ueps.repository.js";
-import { usersRepository } from "../modules/users/users.repository.js";
-import { podeAcessarUep } from "../modules/ueps/ueps.policy.js";
+import { temAcessoAUep } from "../modules/ueps/ueps.acesso.js";
 
 /**
  * Isolamento por UEP no BACKEND: o front já escondia as UEPs de fora, mas
@@ -23,14 +22,8 @@ export const requireUepAccess = asyncHandler(async (req, _res, next) => {
   if (user.role === ROLES.ADMIN) {
     const uep = await uepsRepository.findById(uepId);
     if (!uep) throw ApiError.notFound(`UEP ${uepId} não encontrada`);
-  } else {
-    const professorUepIds =
-      user.role === ROLES.PROFESSOR
-        ? (await usersRepository.findProfessorUeps(user.id)).map((u) => u.id)
-        : [];
-    if (!podeAcessarUep(user, uepId, professorUepIds)) {
-      throw ApiError.forbidden("Você não tem acesso a esta UEP.");
-    }
+  } else if (!(await temAcessoAUep(user, uepId))) {
+    throw ApiError.forbidden("Você não tem acesso a esta UEP.");
   }
 
   req.uepId = uepId;

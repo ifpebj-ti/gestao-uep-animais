@@ -1,4 +1,5 @@
 import { query } from "../../config/db.js";
+import { ApiError } from "../../utils/ApiError.js";
 
 const BASE_SELECT = `
   SELECT a.id, a.uep_id, a.categoria, a.sexo, a.raca, a.data_nascimento,
@@ -9,18 +10,40 @@ const BASE_SELECT = `
   JOIN ueps u ON u.id = a.uep_id
 `;
 
+// Colunas que o service pode gravar (vêm de animais.validators.js).
+const COLUNAS_GRAVAVEIS = new Set([
+  "categoria",
+  "sexo",
+  "raca",
+  "data_nascimento",
+  "status_reprodutivo",
+  "brinco",
+  "corte_australiano",
+  "sisbov",
+  "disponivel",
+  "observacoes",
+]);
+
+// Escapa % e _ para a busca livre não virar curinga sem querer.
+function escaparLike(texto) {
+  return texto.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 /**
  * Monta cláusulas WHERE dinâmicas a partir dos filtros de busca/censo.
  * Reaproveitado tanto na listagem quanto na contagem por categoria.
+ *
+ * uepIds: escopo de UEPs do usuário. null/undefined = todas (Diretoria);
+ * [] = nenhuma (a consulta não devolve nada).
  */
 function buildFilters(filters = {}) {
-  const { uepId, categoria, sexo, statusReprodutivo, disponivel, busca } = filters;
+  const { uepIds, categoria, sexo, statusReprodutivo, disponivel, busca } = filters;
   const conditions = [];
   const params = [];
 
-  if (uepId) {
-    params.push(uepId);
-    conditions.push(`a.uep_id = $${params.length}`);
+  if (Array.isArray(uepIds)) {
+    params.push(uepIds);
+    conditions.push(`a.uep_id = ANY($${params.length}::int[])`);
   }
   if (categoria) {
     params.push(categoria);
@@ -40,7 +63,7 @@ function buildFilters(filters = {}) {
   }
   // Busca livre por identificador: brinco, corte australiano ou SISBOV
   if (busca) {
-    params.push(`%${busca}%`);
+    params.push(`%${escaparLike(busca)}%`);
     const idx = params.length;
     conditions.push(
       `(a.brinco ILIKE $${idx} OR a.corte_australiano ILIKE $${idx} OR a.sisbov ILIKE $${idx})`
@@ -49,6 +72,18 @@ function buildFilters(filters = {}) {
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   return { where, params };
+}
+
+// Mensagens específicas para os UNIQUE da tabela (o genérico do
+// errorHandler não diz qual campo repetiu).
+function traduzirErro(err) {
+  if (err.code === "23505" && err.constraint === "uq_animais_brinco_uep") {
+    return ApiError.conflict("Já existe um animal com esse brinco nesta UEP.");
+  }
+  if (err.code === "23505" && err.constraint === "uq_animais_sisbov") {
+    return ApiError.conflict("Já existe um animal com esse SISBOV.");
+  }
+  return err;
 }
 
 export const animaisRepository = {
@@ -65,7 +100,7 @@ export const animaisRepository = {
     }
 
     const { rows } = await query(
-      `${BASE_SELECT} ${where} ORDER BY a.created_at DESC${pagination}`,
+      `${BASE_SELECT} ${where} ORDER BY a.created_at DESC, a.id DESC${pagination}`,
       params
     );
     return rows;
@@ -77,7 +112,7 @@ export const animaisRepository = {
   },
 
   // Identificadores são únicos: usados para localizar um animal específico
-  async findByIdentifier({ brinco, corteAustraliano, sisbov, uepId }) {
+  async findByIdentifier({ brinco, corteAustraliano, sisbov, uepIds }) {
     // Os identificadores sao alternativos entre si (OR), mas o escopo da UEP
     // e restritivo (AND) — sem o parenteses o uep_id entrava no OR e a busca
     // devolvia a UEP inteira, furando o isolamento por setor.
@@ -100,9 +135,9 @@ export const animaisRepository = {
 
     const conditions = [`(${identificadores.join(" OR ")})`];
 
-    if (uepId) {
-      params.push(uepId);
-      conditions.push(`a.uep_id = $${params.length}`);
+    if (Array.isArray(uepIds)) {
+      params.push(uepIds);
+      conditions.push(`a.uep_id = ANY($${params.length}::int[])`);
     }
 
     const { rows } = await query(
@@ -129,11 +164,10 @@ export const animaisRepository = {
   // Censo: contagem de animais agrupada por raca (Sprint 5)
   async countByRaca(filters) {
     const { where, params } = buildFilters(filters);
-    const sep = where ? `${where} AND` : "WHERE";
     const { rows } = await query(
       `SELECT COALESCE(a.raca, 'Nao informada') AS raca, COUNT(*)::int AS total
        FROM animais a
-       ${sep} TRUE
+       ${where}
        GROUP BY COALESCE(a.raca, 'Nao informada')
        ORDER BY total DESC, raca`,
       params
@@ -150,88 +184,39 @@ export const animaisRepository = {
     return rows[0].total;
   },
 
-  async create({
-    uepId,
-    categoria,
-    sexo,
-    raca,
-    dataNascimento,
-    statusReprodutivo,
-    brinco,
-    corteAustraliano,
-    sisbov,
-    disponivel,
-    observacoes,
-    createdBy,
-  }) {
-    const { rows } = await query(
-      `INSERT INTO animais (
-         uep_id, categoria, sexo, raca, data_nascimento, status_reprodutivo,
-         brinco, corte_australiano, sisbov, disponivel, observacoes, created_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-       RETURNING *`,
-      [
-        uepId,
-        categoria,
-        sexo,
-        raca ?? null,
-        dataNascimento ?? null,
-        statusReprodutivo ?? "NAO_APLICAVEL",
-        brinco ?? null,
-        corteAustraliano ?? null,
-        sisbov ?? null,
-        disponivel ?? true,
-        observacoes ?? null,
-        createdBy ?? null,
-      ]
-    );
-    return rows[0];
+  /** dados: colunas já validadas (animais.validators.js) + uep_id e created_by. */
+  async create(dados) {
+    const colunas = ["uep_id", "created_by", ...Object.keys(dados).filter((c) => COLUNAS_GRAVAVEIS.has(c))];
+    const valores = colunas.map((c) => dados[c] ?? null);
+    const marcadores = colunas.map((_, i) => `$${i + 1}`);
+    try {
+      const { rows } = await query(
+        `INSERT INTO animais (${colunas.join(", ")})
+         VALUES (${marcadores.join(", ")})
+         RETURNING id`,
+        valores
+      );
+      return this.findById(rows[0].id);
+    } catch (err) {
+      throw traduzirErro(err);
+    }
   },
 
-  async update(id, data) {
-    const {
-      categoria,
-      sexo,
-      raca,
-      dataNascimento,
-      statusReprodutivo,
-      brinco,
-      corteAustraliano,
-      sisbov,
-      disponivel,
-      observacoes,
-    } = data;
-
-    const { rows } = await query(
-      `UPDATE animais SET
-         categoria = COALESCE($2, categoria),
-         sexo = COALESCE($3, sexo),
-         raca = COALESCE($4, raca),
-         data_nascimento = COALESCE($5, data_nascimento),
-         status_reprodutivo = COALESCE($6, status_reprodutivo),
-         brinco = COALESCE($7, brinco),
-         corte_australiano = COALESCE($8, corte_australiano),
-         sisbov = COALESCE($9, sisbov),
-         disponivel = COALESCE($10, disponivel),
-         observacoes = COALESCE($11, observacoes),
-         updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [
-        id,
-        categoria ?? null,
-        sexo ?? null,
-        raca ?? null,
-        dataNascimento ?? null,
-        statusReprodutivo ?? null,
-        brinco ?? null,
-        corteAustraliano ?? null,
-        sisbov ?? null,
-        disponivel ?? null,
-        observacoes ?? null,
-      ]
-    );
-    return rows[0] ?? null;
+  /** Atualiza só as colunas presentes em `dados` (null limpa o campo). */
+  async update(id, dados) {
+    const colunas = Object.keys(dados).filter((c) => COLUNAS_GRAVAVEIS.has(c));
+    if (colunas.length > 0) {
+      const sets = colunas.map((c, i) => `${c} = $${i + 2}`);
+      try {
+        await query(
+          `UPDATE animais SET ${sets.join(", ")}, updated_at = now() WHERE id = $1`,
+          [id, ...colunas.map((c) => dados[c])]
+        );
+      } catch (err) {
+        throw traduzirErro(err);
+      }
+    }
+    return this.findById(id);
   },
 
   async remove(id) {

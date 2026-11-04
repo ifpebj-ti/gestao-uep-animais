@@ -1,8 +1,9 @@
 import { ApiError } from "../../utils/ApiError.js";
 
-// parseId fica em utils/validacao.js (usado por todos os modulos); reexportado
+// parseId/parseTexto/parseData ficam em utils/validacao.js (usados por todos
+// os modulos); reexportados
 // aqui para nao quebrar quem ja importa daqui.
-export { parseId } from "../../utils/validacao.js";
+export { parseId, parseTexto, parseData } from "../../utils/validacao.js";
 
 // Maior valor aceito em saldo/quantidade (NUMERIC(14,3) comporta ate 11
 // digitos inteiros; 1e10 deixa folga para somar entradas sem estourar).
@@ -30,38 +31,6 @@ export function parseNumero(value, label, { padrao, minimoExclusivo = false } = 
     throw ApiError.badRequest(`${label} excede o valor máximo permitido.`);
   }
   return n;
-}
-
-export function parseTexto(value, label, { max, obrigatorio = false } = {}) {
-  if (value === undefined || value === null) {
-    if (obrigatorio) throw ApiError.badRequest(`${label} é obrigatório.`);
-    return null;
-  }
-  if (typeof value !== "string") {
-    throw ApiError.badRequest(`${label} deve ser um texto.`);
-  }
-  const texto = value.trim();
-  if (!texto) {
-    if (obrigatorio) throw ApiError.badRequest(`${label} é obrigatório.`);
-    return null;
-  }
-  if (max && texto.length > max) {
-    throw ApiError.badRequest(`${label} deve ter no máximo ${max} caracteres.`);
-  }
-  return texto;
-}
-
-/** Aceita "AAAA-MM-DD" (data de calendario valida). Ausente -> null (banco usa hoje). */
-export function parseData(value) {
-  if (value === undefined || value === null || value === "") return null;
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw ApiError.badRequest("data inválida. Use o formato AAAA-MM-DD.");
-  }
-  const d = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) {
-    throw ApiError.badRequest("data inválida. Use uma data de calendário existente.");
-  }
-  return value;
 }
 
 /** Formata numero para mensagem ao usuario (pt-BR, ate 3 casas, sem zeros sobrando). */
