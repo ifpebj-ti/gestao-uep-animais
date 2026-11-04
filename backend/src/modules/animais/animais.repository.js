@@ -8,6 +8,7 @@ const BASE_SELECT = `
   SELECT a.id, a.uep_id, a.categoria, a.sexo, a.raca, a.data_nascimento,
          a.status_reprodutivo, a.brinco, a.corte_australiano, a.sisbov,
          a.disponivel, a.observacoes, a.created_by, a.created_at, a.updated_at,
+         a.motivo_indisponibilidade, a.indisponivel_desde,
          a.grau_sangue, a.pai_id, p.brinco AS pai_brinco, a.mae_id, m.brinco AS mae_brinco,
          ${SQL_IDADE_MESES} AS idade_meses,
          ${SQL_ESTAGIO_VIDA} AS estagio_vida,
@@ -33,6 +34,8 @@ const COLUNAS_GRAVAVEIS = new Set([
   "grau_sangue",
   "pai_id",
   "mae_id",
+  "motivo_indisponibilidade",
+  "indisponivel_desde",
 ]);
 
 // Escapa % e _ para a busca livre não virar curinga sem querer.
@@ -48,7 +51,16 @@ function escaparLike(texto) {
  * [] = nenhuma (a consulta não devolve nada).
  */
 function buildFilters(filters = {}) {
-  const { uepIds, categoria, sexo, statusReprodutivo, disponivel, estagioVida, busca } = filters;
+  const {
+    uepIds,
+    categoria,
+    sexo,
+    statusReprodutivo,
+    disponivel,
+    estagioVida,
+    motivoIndisponibilidade,
+    busca,
+  } = filters;
   const conditions = [];
   const params = [];
 
@@ -71,6 +83,10 @@ function buildFilters(filters = {}) {
   if (disponivel !== undefined) {
     params.push(disponivel);
     conditions.push(`a.disponivel = $${params.length}`);
+  }
+  if (motivoIndisponibilidade) {
+    params.push(motivoIndisponibilidade);
+    conditions.push(`a.motivo_indisponibilidade = $${params.length}`);
   }
   if (estagioVida) {
     params.push(estagioVida);
@@ -203,6 +219,43 @@ export const animaisRepository = {
       params
     );
     return rows;
+  },
+
+  // Disponibilidade (Sprint 7): totais, por motivo e por categoria.
+  async resumoDisponibilidade(filters) {
+    const { where, params } = buildFilters(filters);
+    const [totais, porMotivo, porCategoria] = await Promise.all([
+      query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE a.disponivel)::int AS disponiveis,
+                COUNT(*) FILTER (WHERE NOT a.disponivel)::int AS indisponiveis
+         FROM animais a ${where}`,
+        params
+      ),
+      query(
+        `SELECT a.motivo_indisponibilidade AS motivo, COUNT(*)::int AS total
+         FROM animais a
+         ${where ? `${where} AND` : "WHERE"} NOT a.disponivel
+         GROUP BY a.motivo_indisponibilidade
+         ORDER BY total DESC, motivo`,
+        params
+      ),
+      query(
+        `SELECT a.categoria,
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE a.disponivel)::int AS disponiveis,
+                COUNT(*) FILTER (WHERE NOT a.disponivel)::int AS indisponiveis
+         FROM animais a ${where}
+         GROUP BY a.categoria
+         ORDER BY a.categoria`,
+        params
+      ),
+    ]);
+    return {
+      ...totais.rows[0],
+      por_motivo: porMotivo.rows,
+      por_categoria: porCategoria.rows,
+    };
   },
 
   // Filhos de um animal (como pai ou como mãe), do mais novo para o mais velho.

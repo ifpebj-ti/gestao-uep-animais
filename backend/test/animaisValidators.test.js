@@ -54,7 +54,7 @@ test("corpo que nao e objeto vira 400", () => {
 
 test("validarFiltros valida enums e booleano da query", () => {
   assert.deepEqual(validarFiltros({ categoria: "VACA", disponivel: "false" }), {
-    categoria: "VACA", sexo: undefined, statusReprodutivo: undefined, disponivel: false, estagioVida: undefined, busca: undefined,
+    categoria: "VACA", sexo: undefined, statusReprodutivo: undefined, disponivel: false, estagioVida: undefined, motivoIndisponibilidade: undefined, busca: undefined,
   });
   assert.throws(() => validarFiltros({ categoria: "PEGASO" }), erro400);
   assert.throws(() => validarFiltros({ disponivel: "talvez" }), erro400);

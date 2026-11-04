@@ -4,6 +4,8 @@ import { ApiError } from "../../utils/ApiError.js";
 import { parseId, parseTexto } from "../../utils/validacao.js";
 import { validarAnimal } from "./animais.validators.js";
 import { validarCoerencia, validarGenealogia } from "./animais.genetica.js";
+import { resolverDisponibilidade } from "./animais.disponibilidade.js";
+import { hojeISO } from "../../utils/validacao.js";
 
 /*
  * Todas as operações recebem `escopo`: a lista de UEPs que a requisição pode
@@ -118,14 +120,26 @@ export const animaisService = {
     if (!uep) throw ApiError.notFound(`UEP ${uepId} não encontrada`);
 
     await validarRegrasGeneticas({ ...dados, uep_id: uepId }, dados);
-    return animaisRepository.create({ ...dados, uep_id: uepId, created_by: createdBy ?? null });
+    const disponibilidade = resolverDisponibilidade({}, dados, hojeISO());
+    return animaisRepository.create({
+      ...dados,
+      ...disponibilidade,
+      uep_id: uepId,
+      created_by: createdBy ?? null,
+    });
   },
 
   async update(escopo, id, body) {
     const atual = await carregarNoEscopo(escopo, id);
     const dados = validarAnimal(body, { parcial: true });
     await validarRegrasGeneticas({ ...atual, ...dados }, dados);
-    return animaisRepository.update(atual.id, dados);
+    const disponibilidade = resolverDisponibilidade(atual, dados, hojeISO());
+    return animaisRepository.update(atual.id, { ...dados, ...disponibilidade });
+  },
+
+  // GET .../animais/disponibilidade -> resumo do setor (Sprint 7)
+  async disponibilidade(escopo, filtros = {}) {
+    return animaisRepository.resumoDisponibilidade({ ...filtros, uepIds: escopo });
   },
 
   // GET .../animais/:id/genealogia -> o animal, pai, mãe e filhos (Sprint 6)

@@ -54,6 +54,11 @@ export const animaisController = {
     res.json(resultado);
   }),
 
+  // GET /animais/disponibilidade (Sprint 7)
+  disponibilidade: asyncHandler(async (req, res) => {
+    res.json(await animaisService.disponibilidade(await escopoDe(req), validarFiltros(req.query)));
+  }),
+
   // GET /animais/:id/genealogia (Sprint 6)
   genealogia: asyncHandler(async (req, res) => {
     res.json(await animaisService.genealogia(await escopoDe(req, null), req.params.id));

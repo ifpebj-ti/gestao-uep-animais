@@ -37,4 +37,16 @@ export const STATUS_REPRODUTIVOS = Object.freeze([
   "DESCARTE",
 ]);
 
+// Sprint 7: por que um animal nao esta disponivel no setor
+export const MOTIVOS_INDISPONIBILIDADE = Object.freeze([
+  "VENDIDO",
+  "OBITO",
+  "TRANSFERIDO",
+  "EM_TRATAMENTO",
+  "QUARENTENA",
+  "RESERVADO",
+  "DESCARTE",
+  "OUTRO",
+]);
+
 export const MOVIMENTACAO_TIPOS = Object.freeze(["ENTRADA", "SAIDA"]);
