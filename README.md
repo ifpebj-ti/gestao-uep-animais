@@ -79,13 +79,20 @@ As migrations do banco rodam automaticamente na inicialização do backend.
 
 ## Como rodar em produção
 
-Usa as imagens publicadas no GitHub Container Registry, sem build local:
+Usa as imagens publicadas no GitHub Container Registry, sem build local, com
+proxy reverso Caddy e HTTPS automático (Let's Encrypt):
 
 ```bash
 cp .env.prod.example .env
-# preencha todas as variáveis obrigatórias (senhas, JWT_SECRET, API_URL)
-docker compose -f docker-compose.prod.yml up -d
+# preencha as variáveis obrigatórias: APP_DOMAIN, API_URL, CORS_ORIGINS,
+# senhas e JWT_SECRET (gere os segredos com "openssl rand -hex 24")
+chmod 600 .env
+docker compose up -d     # o COMPOSE_FILE do .env já inclui o proxy
 ```
+
+Antes de subir, aponte os registros DNS `A` do domínio e de `api.<domínio>` para o
+IP do servidor e libere as portas 80 e 443 no firewall. Não exponha as portas
+3000, 5000 e 8080 publicamente: o acesso é só pelo proxy.
 
 Para usar uma versão específica, defina `IMAGE_TAG` no `.env` (ex.: `IMAGE_TAG=0.3.0`).
 
@@ -107,6 +114,9 @@ cd data
 pip install -r requirements-dev.txt
 flake8 scripts/ --max-line-length=100
 pytest test/ -v
+
+# Teste de carga básico (k6 instalado; rode de uma rede sem filtro)
+k6 run -e EMAIL=<e-mail> -e SENHA=<senha> loadtest/k6-smoke.js
 
 # Frontend
 cd frontend
@@ -135,6 +145,8 @@ Tags publicadas: `main` e `sha-<commit>` a cada push na main; `X.Y.Z`, `X.Y` e `
 - Imagens analisadas pelo **Trivy** antes da publicação
 - Autenticação via JWT e login com Google restrito a contas institucionais IFPE
 - Controle de acesso por perfil (Diretoria > Professor > Equipe)
+- HTTPS com certificado Let's Encrypt emitido e renovado automaticamente pelo proxy Caddy; só as portas 22, 80 e 443 ficam abertas no firewall
+- Segredos fora do repositório (`.env` com `chmod 600`) e varredura de segredos (Secret Scanning) ativa no GitHub
 
 Veja a Modelagem de Ameaças e o Guia de Boas Práticas na [Wiki](../../wiki).
 

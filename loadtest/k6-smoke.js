@@ -1,7 +1,7 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 
-const BASE = __ENV.BASE_URL || "https://api.137-131-237-3.sslip.io";
+const BASE = __ENV.BASE_URL || "https://api.uepanimais.me";
 
 export const options = {
   stages: [

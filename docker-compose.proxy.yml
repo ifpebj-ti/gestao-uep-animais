@@ -1,0 +1,24 @@
+# Proxy reverso com HTTPS automatico (Let's Encrypt). Usado junto com o
+# docker-compose.prod.yml: COMPOSE_FILE=docker-compose.prod.yml:docker-compose.proxy.yml
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?defina APP_DOMAIN no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
