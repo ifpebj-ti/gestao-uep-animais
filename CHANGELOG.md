@@ -14,6 +14,8 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 4: criar, editar e excluir UEP passa a ser exclusivo da Diretoria (ADMIN)
 - Sprint 5: animais de outra UEP não são mais alcançáveis pela rota de um setor (`/ueps/:uepId/animais/:id` → 404) e as rotas da raiz (`/api/animais`) só mostram as UEPs do usuário
 - Sprint 13: `npm audit fix` nas dependências de produção do backend (body-parser/qs); XLSX gerado sem exceljs para não trazer pacotes com vulnerabilidade
+- Sprint 14: token JWT exposto em `loadtest/resultado.json` foi removido do repositório, o `JWT_SECRET` de produção foi rotacionado e o arquivo passou a ser ignorado no `.gitignore`
+- Sprint 14: HTTPS com certificado Let's Encrypt no proxy reverso e portas diretas da aplicação (3000, 5000 e 8080) fechadas no firewall
 
 ### Corrigido
 - Sprint 3: login aceita o e-mail com maiúsculas/espaços; JSON malformado no corpo devolve 400 em vez de 500; senha mínima de 6 caracteres também no autocadastro
@@ -21,20 +23,25 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 5: PATCH de animal consegue limpar campos opcionais (ex.: apagar as observações); filtros do censo validados (400); brinco/SISBOV repetido devolve 409 com mensagem clara; data de nascimento futura é recusada
 - Sprint 6: datas (`DATE`) passam a sair da API como `AAAA-MM-DD`, sem depender do fuso do servidor
 - Sprint 10: quantidades com mais de 3 casas decimais e movimentações com data futura são recusadas (antes eram arredondadas em silêncio ou geravam 500)
+- Sprint 11: `.env.prod.example` atualizado (`IMAGE_TAG`, `CORS_ORIGINS`, `APP_DOMAIN`) e com aviso de que o `.env` não executa comandos
 
 ### Adicionado
 - Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`
+- Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 - Sprint 6: atributos genéticos dos animais — grau de sangue, pai e mãe (genealogia, `GET .../animais/:id/genealogia`), idade em meses e estágio de vida (CRIA/RECRIA/ADULTO) calculados; censo por estágio e filtro `?estagioVida=`
 - Sprint 6: regra de coerência entre categoria, sexo e fase reprodutiva (ex.: VACA exige fêmea; macho não fica PRENHE/LACTANTE/VAZIA)
 - Sprint 7: regra de disponibilidade do animal no setor — todo indisponível tem motivo (VENDIDO, OBITO, TRANSFERIDO, EM_TRATAMENTO, QUARENTENA, RESERVADO, DESCARTE, OUTRO) e data; animal em DESCARTE nunca fica disponível; resumo em `GET .../animais/disponibilidade` e filtro `?motivoIndisponibilidade=`
 - Sprint 10: `GET/PATCH /api/ueps/:uepId/insumos/:id` para consultar e editar o cadastro do insumo (nome, unidade, estoque mínimo, consumo médio); o saldo continua mudando só por movimentação
+- Sprint 10: VM em nuvem (IaaS) na Oracle Cloud com Docker e Docker Compose, IP público reservado e swap para a memória limitada
+- Sprint 11: deploy conteinerizado na VM a partir das imagens do GHCR e proxy reverso Caddy com HTTPS automático (`Caddyfile` e `docker-compose.proxy.yml`, domínio configurável por `APP_DOMAIN`)
 - Sprint 11: regra de alerta de nível crítico de estoque (CRITICO = saldo no mínimo ou abaixo; ATENCAO = acaba em menos de 7 dias). Insumos saem com `nivel_alerta` e `previsao_dias`; novos `GET /api/ueps/:uepId/estoque/alertas` e `GET /api/estoque/alertas` (painel com as UEPs do usuário); compras passa a usar a mesma regra
+- Sprint 12: cobertura mínima de 70% também no serviço de dados (`pytest-cov`) no CI
 - Sprint 13: módulo de relatórios do gestor — `POST /api/relatorios/:tipo/gerar` em PDF ou Excel (.xlsx) para censo geral, status reprodutivo, movimentação de estoque (por período) e necessidades de compra; só Diretoria
 - Sprint 13: documentos (notas fiscais e outros PDFs) — upload até 10 MB guardado no Postgres, listagem, download, remoção e `POST /api/documentos/unir` (junta documentos e relatórios gerados na hora em um PDF), no contrato que o front da Sprint 13 já usa
 - Sprint 14: calendário de atividades dos animais — `GET/POST /api/ueps/:uepId/atividades` e `PATCH/DELETE .../atividades/:id` (gestação, vermífugo, vacina, aula de manejo, outro), no contrato que o front já usa; qualquer perfil da UEP registra, Professor ou autor altera
 - Sprint 14: testes de integração da API contra Postgres real (`backend/test/integration`) e `npm run test:coverage` (c8) com mínimo de 70% — hoje ~97% de linhas; o CI roda no job de migrações e publica o relatório como artefato
+- Sprint 14: teste de carga básico com k6 (`loadtest/k6-smoke.js`): 10 usuários virtuais por 80 s, 0% de falhas e p95 de 142 ms
 
-- Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 ## [0.3.0] - 2026-09-30
 
 Entrega do Marco da Primeira Unidade.
