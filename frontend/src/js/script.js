@@ -775,8 +775,55 @@ function hojeISO() {
    atual — chamada por enterApp() (uma vez por troca de setor) e sempre
    que uma movimentação ou um novo insumo é confirmado. Também dispara
    renderMovimentacoes() ao final, pra manter as duas tabelas em sincronia. */
+/* Card "Alertas" e KPI "Alertas de estoque" do Painel. Antes eram texto fixo
+   no HTML ("1" e "Estoque abaixo do nível crítico"), por isso o Painel
+   acusava ração crítica mesmo com o estoque normal. Agora usam a mesma regra
+   do backend (estoque.alertas.js): CRITICO = saldo no mínimo ou abaixo;
+   ATENCAO = acaba em menos de 7 dias no consumo atual.
+   GET /ueps/:uepId/estoque/alertas -> { criticos, atencao, alertas: [{ nome, nivel, mensagem }] } */
+var PAINEL_MAX_ALERTAS = 4;
+function renderAlertasPainel() {
+  var uepId = currentSetor;
+  var kpi = document.getElementById('kpiAlertasEstoque');
+  var icone = document.getElementById('kpiAlertasEstoqueIcon');
+  var caixa = document.getElementById('painelAlertas');
+  if (!kpi || !caixa || !uepId) return;
+
+  function item(classeDot, html) {
+    return '<div class="feed-item"><div class="feed-dot' + (classeDot ? ' ' + classeDot : '') + '"></div><div>' + html + '</div></div>';
+  }
+
+  apiFetch('/ueps/' + uepId + '/estoque/alertas').then(function(resp) {
+    if (uepId !== currentSetor) return; // trocou de UEP enquanto carregava
+    var alertas = (resp && resp.alertas) || [];
+    kpi.textContent = alertas.length;
+    icone.classList.toggle('warn', alertas.length > 0);
+
+    if (!alertas.length) {
+      caixa.innerHTML = item('', '<div><b>Estoque em dia</b></div><div class="feed-time">nenhum insumo no nível mínimo ou perto de acabar</div>');
+      return;
+    }
+    var html = alertas.slice(0, PAINEL_MAX_ALERTAS).map(function(a) {
+      var critico = a.nivel === 'CRITICO';
+      return item(critico ? 'danger' : 'warn',
+        '<div><b>' + escaparHtml(a.nome) + '</b> — ' + (critico ? 'nível crítico' : 'atenção') + '</div>' +
+        '<div class="feed-time">' + escaparHtml(a.mensagem || '') + '</div>');
+    }).join('');
+    if (alertas.length > PAINEL_MAX_ALERTAS) {
+      html += item('', '<div class="feed-time">e mais ' + (alertas.length - PAINEL_MAX_ALERTAS) + ' — veja a aba Estoque</div>');
+    }
+    caixa.innerHTML = html;
+  }).catch(function(err) {
+    if (uepId !== currentSetor) return;
+    kpi.textContent = '—';
+    icone.classList.remove('warn');
+    caixa.innerHTML = item('', '<div>Não foi possível carregar os alertas de estoque.</div><div class="feed-time">' + escaparHtml(err.message) + '</div>');
+  });
+}
+
 function renderEstoque() {
   var uepId = currentSetor;
+  renderAlertasPainel();
   var tbody = document.getElementById('tabelaInsumos');
   tbody.innerHTML = '<tr><td colspan="8">Carregando…</td></tr>';
 
