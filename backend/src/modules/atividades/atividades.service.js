@@ -3,7 +3,7 @@ import { parseId } from "../../utils/validacao.js";
 import { ROLES } from "../../config/roles.js";
 import { animaisRepository } from "../animais/animais.repository.js";
 import { atividadesRepository } from "./atividades.repository.js";
-import { validarAtividade, validarEstadoFinal, parseAno } from "./atividades.validators.js";
+import { validarAtividade, validarEstadoFinal, ajustarHorario, parseAno } from "./atividades.validators.js";
 
 /*
  * Calendário de atividades (Sprint 14). Todas as rotas ficam dentro de
@@ -13,6 +13,9 @@ import { validarAtividade, validarEstadoFinal, parseAno } from "./atividades.val
  *   ver e registrar  -> qualquer perfil com acesso à UEP (inclusive Aluno e
  *                       Estagiário: registrar atividade de campo é a função deles)
  *   editar e remover -> Diretoria, Professor da UEP, ou quem criou a atividade
+ *
+ * Agenda (front de 17/11): só AULA_MANEJO tem horário; os demais tipos são
+ * "o dia todo" e a hora é sempre gravada como null (ver ajustarHorario).
  */
 
 export function podeAlterar(user, atividade) {
@@ -44,6 +47,7 @@ export const atividadesService = {
 
   async criar(user, uepId, body) {
     const dados = validarAtividade(body, { parcial: false });
+    ajustarHorario(dados, dados);
     validarEstadoFinal(dados, await animalDaUep(uepId, dados.animal_id));
     return atividadesRepository.create(uepId, dados, user.id);
   },
@@ -55,6 +59,7 @@ export const atividadesService = {
     }
     const dados = validarAtividade(body, { parcial: true });
     const final = { ...atual, ...dados };
+    ajustarHorario(final, dados);
     validarEstadoFinal(final, await animalDaUep(uepId, final.animal_id));
     return atividadesRepository.update(uepId, atual.id, dados);
   },

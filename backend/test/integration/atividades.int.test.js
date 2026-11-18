@@ -38,6 +38,11 @@ describe("Integração: calendário de atividades", { skip: MOTIVO_SKIP }, () =>
     r = await criar({ tipo: "AULA_MANEJO", data: "2026-12-01", hora: "14:30", animalId: touro.id }, tokenTecnico);
     assert.equal(r.dados.hora, "14:30");
     await criar({ tipo: "OUTRO", data: "2027-01-05" }, c.tokenProf);
+    // agenda: so a aula de manejo tem horario; os outros tipos sao "o dia todo"
+    r = await criar({ tipo: "OUTRO", data: "2027-01-06", hora: "09:00" }, c.tokenProf);
+    assert.equal(r.status, 201);
+    assert.equal(r.dados.hora, null);
+    assert.equal((await api(`${base}/${r.dados.id}`, { metodo: "DELETE", token: c.tokenProf })).status, 204);
 
     assert.equal((await criar({ tipo: "VACINA", data: "2026-05-01" })).status, 400, "vacina exige animal");
     assert.equal((await criar({ tipo: "GESTACAO", data: "2026-05-01", animalId: touro.id })).status, 400, "gestacao so em femea");
@@ -46,7 +51,7 @@ describe("Integração: calendário de atividades", { skip: MOTIVO_SKIP }, () =>
     assert.equal((await criar({ tipo: "OUTRO" })).status, 400);
     assert.equal((await criar({ tipo: "OUTRO", data: "1999-12-31" })).status, 400);
     assert.equal((await criar({ tipo: "OUTRO", data: "2026-05-01", hora: "25:00" })).status, 400);
-    assert.equal((await criar({ tipo: "OUTRO", data: "2026-05-01", observacao: "x".repeat(1001) })).status, 400);
+    assert.equal((await criar({ tipo: "OUTRO", data: "2026-05-01", observacao: "x".repeat(301) })).status, 400);
     assert.equal((await api(`/ueps/${c.outra.id}/atividades`, { metodo: "POST", token: c.tokenAluno, body: { tipo: "OUTRO", data: "2026-05-01" } })).status, 403);
   });
 
@@ -68,8 +73,10 @@ describe("Integração: calendário de atividades", { skip: MOTIVO_SKIP }, () =>
     assert.equal((await api(`${base}/${gestacao.id}`, { metodo: "PATCH", token: tokenTecnico, body: { observacao: "x" } })).status, 403);
     assert.equal((await api(`${base}/${gestacao.id}`, { metodo: "DELETE", token: tokenTecnico })).status, 403);
     // professor edita qualquer uma; estado final validado (tirar o animal de uma vacina)
-    r = await api(`${base}/${aula.id}`, { metodo: "PATCH", token: c.tokenProf, body: { tipo: "VACINA", hora: null } });
+    // trocar a aula por vacina sem mandar hora: a vacina fica "o dia todo"
+    r = await api(`${base}/${aula.id}`, { metodo: "PATCH", token: c.tokenProf, body: { tipo: "VACINA" } });
     assert.equal(r.status, 200);
+    assert.equal(r.dados.hora, null);
     assert.equal((await api(`${base}/${aula.id}`, { metodo: "PATCH", token: c.tokenProf, body: { animalId: null } })).status, 400);
     assert.equal((await api(`${base}/99999999`, { metodo: "PATCH", token: c.tokenProf, body: {} })).status, 404);
     assert.equal((await api(`/ueps/${c.outra.id}/atividades/${aula.id}`, { metodo: "DELETE", token: c.tokenAdmin })).status, 404);
