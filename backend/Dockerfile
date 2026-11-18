@@ -26,6 +26,11 @@ RUN npm install --omit=dev
 
 COPY src/ ./src/
 
+# Roda como o usuario "node" (ja existe na imagem oficial), nao como root:
+# se a API for comprometida, o invasor nao ganha root dentro do container.
+# Os arquivos copiados acima continuam do root e so precisam ser lidos.
+USER node
+
 EXPOSE 3000
 
 CMD ["sh", "-c", "node src/db/migrate.js && node src/index.js"]
