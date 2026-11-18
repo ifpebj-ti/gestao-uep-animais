@@ -262,3 +262,54 @@ jobs:
         if: github.event_name == 'push'
         run: |
           docker push --all-tags ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+
+  release:
+    needs: [docker]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Definir versão
+        id: v
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            last=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1)
+            IFS=. read -r ma mi pa <<< "${last:-v0.0.0}"
+            echo "tag=${ma}.${mi}.$((pa+1))" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Criar Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+
+      - name: Versionar imagens (push na main)
+        if: github.ref_type == 'branch'
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          for s in frontend backend data; do
+            img=ghcr.io/${{ github.repository }}/$s
+            docker buildx imagetools create -t $img:${TAG#v} -t $img:latest $img:sha-${GITHUB_SHA::7}
+          done        
