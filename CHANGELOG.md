@@ -7,15 +7,22 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [0.4.0] - 2026-11-18
+
+Entrega da Segunda Unidade (Sprints 3 a 15).
+
 ### Segurança
 - Sprint 3: `JWT_SECRET` passa a ser obrigatório em produção (o backend não sobe com o valor de exemplo)
 - Sprint 3: cada requisição confere se a conta do token ainda existe e está ativa, e usa o papel atual do banco
 - Sprint 4: isolamento por UEP no backend — dados em `/api/ueps/:uepId/*` (animais, estoque, compras) só para quem tem acesso à UEP (Diretoria: todas; Professor: as concedidas; equipe: a própria), senão 403
 - Sprint 4: criar, editar e excluir UEP passa a ser exclusivo da Diretoria (ADMIN)
 - Sprint 5: animais de outra UEP não são mais alcançáveis pela rota de um setor (`/ueps/:uepId/animais/:id` → 404) e as rotas da raiz (`/api/animais`) só mostram as UEPs do usuário
+- Dependências com alerta do Dependabot atualizadas — `google-auth-library` 9 → 10 no backend e `flask` 3.0.3 → 3.1.3 no serviço de dados
+- Sprint 10: `proxy-addr` atualizado para 2.0.8 (CVE-2026-90711)
 - Sprint 13: `npm audit fix` nas dependências de produção do backend (body-parser/qs); XLSX gerado sem exceljs para não trazer pacotes com vulnerabilidade
 - Sprint 14: token JWT exposto em `loadtest/resultado.json` foi removido do repositório, o `JWT_SECRET` de produção foi rotacionado e o arquivo passou a ser ignorado no `.gitignore`
 - Sprint 14: HTTPS com certificado Let's Encrypt no proxy reverso e portas diretas da aplicação (3000, 5000 e 8080) fechadas no firewall
+- Sprint 15: vulnerabilidade alta (`source-map-js`) corrigida nas dependências do frontend (PRs #122 e #100)
 
 ### Corrigido
 - Sprint 3: login aceita o e-mail com maiúsculas/espaços; JSON malformado no corpo devolve 400 em vez de 500; senha mínima de 6 caracteres também no autocadastro
@@ -25,22 +32,34 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Sprint 10: quantidades com mais de 3 casas decimais e movimentações com data futura são recusadas (antes eram arredondadas em silêncio ou geravam 500)
 - Sprint 11: `.env.prod.example` atualizado (`IMAGE_TAG`, `CORS_ORIGINS`, `APP_DOMAIN`) e com aviso de que o `.env` não executa comandos
 
+### Alterado
+- Sprint 14: origens de CORS do backend configuráveis por `CORS_ORIGINS` (padrão: localhost), exigidas no `docker-compose.prod.yml`
+- README atualizado com a documentação do marco, o CI/CD, a execução e o deploy de produção com proxy reverso
+- Sprint 14: calendário de atividades do frontend passa a ser exibido em formato de agenda (PR #124)
+
 ### Adicionado
 - Sprint 3: `backend/src/app.js` separado do `index.js` (base para testes de integração) e rota `GET /api/health`
 - Sprint 4: contas de demonstração já nascem vinculadas (Professor demo com todas as UEPs; Técnico/Estagiário/Aluno demo na equipe dele)
 - Sprint 6: atributos genéticos dos animais — grau de sangue, pai e mãe (genealogia, `GET .../animais/:id/genealogia`), idade em meses e estágio de vida (CRIA/RECRIA/ADULTO) calculados; censo por estágio e filtro `?estagioVida=`
 - Sprint 6: regra de coerência entre categoria, sexo e fase reprodutiva (ex.: VACA exige fêmea; macho não fica PRENHE/LACTANTE/VAZIA)
 - Sprint 7: regra de disponibilidade do animal no setor — todo indisponível tem motivo (VENDIDO, OBITO, TRANSFERIDO, EM_TRATAMENTO, QUARENTENA, RESERVADO, DESCARTE, OUTRO) e data; animal em DESCARTE nunca fica disponível; resumo em `GET .../animais/disponibilidade` e filtro `?motivoIndisponibilidade=`
+- Sprint 10: controle de estoque de insumos — `GET/POST /api/ueps/:uepId/insumos` e `GET/POST /api/ueps/:uepId/estoque/movimentacoes` (tabelas `insumos` e `estoque_movimentacoes`)
 - Sprint 10: `GET/PATCH /api/ueps/:uepId/insumos/:id` para consultar e editar o cadastro do insumo (nome, unidade, estoque mínimo, consumo médio); o saldo continua mudando só por movimentação
 - Sprint 10: VM em nuvem (IaaS) na Oracle Cloud com Docker e Docker Compose, IP público reservado e swap para a memória limitada
 - Sprint 11: deploy conteinerizado na VM a partir das imagens do GHCR e proxy reverso Caddy com HTTPS automático (`Caddyfile` e `docker-compose.proxy.yml`, domínio configurável por `APP_DOMAIN`)
 - Sprint 11: regra de alerta de nível crítico de estoque (CRITICO = saldo no mínimo ou abaixo; ATENCAO = acaba em menos de 7 dias). Insumos saem com `nivel_alerta` e `previsao_dias`; novos `GET /api/ueps/:uepId/estoque/alertas` e `GET /api/estoque/alertas` (painel com as UEPs do usuário); compras passa a usar a mesma regra
+- Sprint 12: necessidades de compra por UEP — `GET /api/ueps/:uepId/compras/necessidades?dias=` (insumos e rebanho consolidados)
 - Sprint 12: cobertura mínima de 70% também no serviço de dados (`pytest-cov`) no CI
 - Sprint 13: módulo de relatórios do gestor — `POST /api/relatorios/:tipo/gerar` em PDF ou Excel (.xlsx) para censo geral, status reprodutivo, movimentação de estoque (por período) e necessidades de compra; só Diretoria
 - Sprint 13: documentos (notas fiscais e outros PDFs) — upload até 10 MB guardado no Postgres, listagem, download, remoção e `POST /api/documentos/unir` (junta documentos e relatórios gerados na hora em um PDF), no contrato que o front da Sprint 13 já usa
 - Sprint 14: calendário de atividades dos animais — `GET/POST /api/ueps/:uepId/atividades` e `PATCH/DELETE .../atividades/:id` (gestação, vermífugo, vacina, aula de manejo, outro), no contrato que o front já usa; qualquer perfil da UEP registra, Professor ou autor altera
 - Sprint 14: testes de integração da API contra Postgres real (`backend/test/integration`) e `npm run test:coverage` (c8) com mínimo de 70% — hoje ~97% de linhas; o CI roda no job de migrações e publica o relatório como artefato
 - Sprint 14: teste de carga básico com k6 (`loadtest/k6-smoke.js`): 10 usuários virtuais por 80 s, 0% de falhas e p95 de 142 ms
+- Sprint 15: tela de controle de insumos e ração (Sprint 10), coluna Observação no estoque e modais com tema claro (Sprint 12), relatórios em PDF e união de PDFs das notas fiscais (Sprint 13) e aba Calendário de atividades com ajustes de acessibilidade (Sprint 14)
+- Sprint 15: Dependabot passa a monitorar também as dependências npm do frontend
+- Sprint 15: Guia de Segurança e Privacidade na Wiki (dados tratados, LGPD, controles, riscos conhecidos e resposta a incidentes)
+
+PRs: #91, #98, #99, #100, #101, #102, #103, #105, #106, #107, #108, #109, #110, #111, #112, #113, #114, #115, #116, #117, #118, #121, #122, #124
 
 ## [0.3.0] - 2026-09-30
 
