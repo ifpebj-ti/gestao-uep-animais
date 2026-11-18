@@ -1618,10 +1618,13 @@ function unirPdfsSelecionados() {
 
 /* =====================================================================
    8F. CALENDÁRIO DE ATIVIDADES (Sprint 14) — aba para todos os perfis operacionais
-   Mostra o ANO INTEIRO (12 meses). Professores, alunos, técnicos e estagiários
-   registram atividades ligadas aos animais da UEP atual: gestação, vermífugo,
-   vacina, aula de manejo (com o animal escolhido) e outras. Datas passadas
-   servem de registro ("engravidou em..."), datas futuras viram agendamento.
+   Estilo "agenda" do Google Agenda: a tela lista SÓ os dias que têm atividade
+   (dias vazios não aparecem), agrupados por mês, com um botão "+" para criar.
+   Tocar numa atividade abre a janela de detalhes (editar / remover; só leitura
+   para quem não pode editar). Professores, alunos, técnicos e estagiários registram
+   atividades ligadas aos animais da UEP atual: gestação, vermífugo, vacina,
+   aula de manejo (com o animal escolhido) e outras. Datas passadas servem de
+   registro ("engravidou em..."), datas futuras viram agendamento.
 
    Contrato esperado do backend (JWT; sempre dentro de uma UEP):
 
@@ -1641,52 +1644,34 @@ function unirPdfsSelecionados() {
    (o backend deve conferir isso também). Erros: JSON { error: "mensagem" }.
    ===================================================================== */
 
+/* "solido" é a cor do bloco na agenda (texto branco por cima, contraste >= 4,5:1) */
 var CAL_TIPOS = {
-  GESTACAO:    { rotulo: 'Gestação', curto: 'Gest.',       cor: '#b8336a', fundo: '#fde4ef', texto: '#8a1f4d', exigeAnimal: true,
+  GESTACAO:    { rotulo: 'Gestação',       solido: '#b8336a', exigeAnimal: true,
                  dica: 'Registre o dia em que o animal ficou (ou foi confirmado) gestante.' },
-  VERMIFUGO:   { rotulo: 'Vermífugo', curto: 'Vermíf.',      cor: '#b7791f', fundo: '#fdf0d0', texto: '#7a4f00', exigeAnimal: true,
+  VERMIFUGO:   { rotulo: 'Vermífugo',      solido: '#8f5e0a', exigeAnimal: true,
                  dica: 'Registre o dia em que o vermífugo foi (ou será) aplicado no animal.' },
-  VACINA:      { rotulo: 'Vacina', curto: 'Vacina',         cor: '#2b6cb0', fundo: '#e0ecfb', texto: '#1a4a85', exigeAnimal: true,
+  VACINA:      { rotulo: 'Vacina',         solido: '#2b6cb0', exigeAnimal: true,
                  dica: 'Registre o dia em que a vacina foi (ou será) aplicada no animal.' },
-  AULA_MANEJO: { rotulo: 'Aula de manejo', curto: 'Aula', cor: '#2f9e41', fundo: '#dcf5e3', texto: '#1e6b2c', exigeAnimal: false,
+  AULA_MANEJO: { rotulo: 'Aula de manejo', solido: '#1f7a30', exigeAnimal: false,
                  dica: 'Marque o dia da aula e escolha o animal que será usado no manejo.' },
-  OUTRO:       { rotulo: 'Outro', curto: 'Outro',          cor: '#5a6472', fundo: '#e9ecef', texto: '#37404c', exigeAnimal: false,
+  OUTRO:       { rotulo: 'Outro',          solido: '#5a6472', exigeAnimal: false,
                  dica: '' }
 };
-var CAL_ORDEM_TIPOS = ['GESTACAO', 'VERMIFUGO', 'VACINA', 'AULA_MANEJO', 'OUTRO'];
 
 var CAL_ANO = new Date().getFullYear();
 var CAL_ATIVIDADES = [];        // atividades do ano mostrado
 var CAL_ANIMAIS = [];           // animais da UEP (para o seletor e o filtro)
 var CAL_ANIMAIS_UEP = null;     // de qual UEP é a lista acima
-var CAL_DIA_SELECIONADO = null; // 'yyyy-mm-dd' do dia aberto no painel lateral
-var CAL_DIA_FOCO = null;        // dia que recebe o Tab (só um botão do calendário fica no Tab)
-var CAL_FOCAR_APOS_PINTAR = false;
+var CAL_FOCAR_DATA = null;      // depois de salvar: dia cuja atividade deve receber o foco
 var calRequisicaoAtual = 0;
 var calEditandoId = null;
 var elementoAntesDoModalCal = null;
 
 /* ---------- datas (tudo em "yyyy-mm-dd", no horário local) ---------- */
 
-function calISO(ano, mes, dia) { // mes: 0-11
-  return ano + '-' + String(mes + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
-}
 function calDataDeISO(iso) {
   var p = iso.split('-');
   return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
-}
-function calSomarDias(iso, n) {
-  var d = calDataDeISO(iso);
-  d.setDate(d.getDate() + n);
-  return dataLocalISO(d);
-}
-function calSomarMeses(iso, n) { // 31/03 + 1 mês = 30/04 (nunca "pula" para maio)
-  var d = calDataDeISO(iso);
-  var dia = d.getDate();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + n);
-  d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
-  return dataLocalISO(d);
 }
 function calCapitalizar(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 function calDataLonga(iso) { // "terça-feira, 3 de novembro de 2026"
@@ -1706,20 +1691,19 @@ function calPodeEditar(a) {
 
 /* ---------- carregar ---------- */
 
-/* Busca as atividades do ano (e os animais da UEP, uma vez por UEP) e desenha tudo.
-   Chamada ao abrir a aba, ao trocar de ano e depois de criar / editar / remover. */
-function renderCalendario() {
+/* Busca as atividades do ano (e os animais da UEP, uma vez por UEP) e desenha a agenda.
+   rolarParaHoje: ao abrir a aba / trocar de ano, leva a tela até a linha "Hoje". */
+function renderCalendario(rolarParaHoje) {
   if (!currentSetor) return;
   var uepId = currentSetor;
   var requisicao = ++calRequisicaoAtual;
   esconderErroCal();
   document.getElementById('calAnoTitulo').textContent = CAL_ANO;
   document.getElementById('calStatus').textContent = 'Carregando atividades…';
-  desenharLegendaCal();
 
   var pedidos = [apiFetch('/ueps/' + uepId + '/atividades?ano=' + CAL_ANO)];
   if (CAL_ANIMAIS_UEP !== uepId) {
-    // se a lista de animais falhar, o calendário ainda funciona (só o seletor de animal fica vazio)
+    // se a lista de animais falhar, a agenda ainda funciona (só o seletor de animal fica vazio)
     pedidos.push(apiFetch('/ueps/' + uepId + '/animais').catch(function() { return null; }));
   }
 
@@ -1737,26 +1721,16 @@ function renderCalendario() {
     mostrarErroCal('Não foi possível carregar as atividades: ' + (err instanceof TypeError ? 'servidor indisponível.' : err.message));
   }).then(function() {
     if (requisicao !== calRequisicaoAtual) return;
-    var hoje = dataLocalISO(new Date());
-    if (!CAL_DIA_SELECIONADO || CAL_DIA_SELECIONADO.slice(0, 4) !== String(CAL_ANO)) {
-      CAL_DIA_SELECIONADO = (hoje.slice(0, 4) === String(CAL_ANO)) ? hoje : calISO(CAL_ANO, 0, 1);
-    }
-    CAL_DIA_FOCO = CAL_DIA_SELECIONADO;
     pintarCalendario();
-    document.getElementById('calStatus').textContent =
-      CAL_ATIVIDADES.length + (CAL_ATIVIDADES.length === 1 ? ' atividade' : ' atividades') + ' em ' + CAL_ANO + '.';
-    if (CAL_FOCAR_APOS_PINTAR) {
-      CAL_FOCAR_APOS_PINTAR = false;
-      var botao = document.querySelector('#calAno .cal-dia[data-data="' + CAL_DIA_FOCO + '"]');
-      if (botao) botao.focus();
+    if (CAL_FOCAR_DATA) { // acabou de salvar: foca a atividade do dia salvo
+      var bloco = document.querySelector('#calAgenda .ag-evento[data-data="' + CAL_FOCAR_DATA + '"]');
+      CAL_FOCAR_DATA = null;
+      if (bloco) { bloco.focus(); bloco.scrollIntoView({ block: 'nearest' }); }
+    } else if (rolarParaHoje === true) {
+      var marca = document.querySelector('#calAgenda .ag-hoje');
+      if (marca) marca.scrollIntoView({ block: 'center' });
     }
   });
-}
-
-function desenharLegendaCal() {
-  document.getElementById('calLegenda').innerHTML = CAL_ORDEM_TIPOS.map(function(t) {
-    return '<li><i style="background:' + CAL_TIPOS[t].cor + '" aria-hidden="true"></i>' + CAL_TIPOS[t].rotulo + '</li>';
-  }).join('');
 }
 
 function nomeDoAnimalCal(a) {
@@ -1782,178 +1756,111 @@ function calAtividadesFiltradas() {
 
 function calAplicarFiltros() { pintarCalendario(); }
 
-/* ---------- desenhar os 12 meses ---------- */
+/* ---------- desenhar a agenda (só dias com atividade) ---------- */
 
 function pintarCalendario() {
-  var porDia = {};
-  calAtividadesFiltradas().forEach(function(a) {
-    var dia = calDiaDaAtividade(a);
-    (porDia[dia] = porDia[dia] || []).push(a);
-  });
-
-  var hoje = dataLocalISO(new Date());
-  var html = '';
-  for (var m = 0; m < 12; m++) {
-    var primeiro = new Date(CAL_ANO, m, 1);
-    var nomeMes = calCapitalizar(primeiro.toLocaleDateString('pt-BR', { month: 'long' }));
-    var diasNoMes = new Date(CAL_ANO, m + 1, 0).getDate();
-    var totalMes = 0;
-    Object.keys(porDia).forEach(function(k) { if (k.slice(5, 7) === String(m + 1).padStart(2, '0')) totalMes += porDia[k].length; });
-    html += '<section class="cal-mes' + (CAL_ANO === Number(hoje.slice(0, 4)) && m === Number(hoje.slice(5, 7)) - 1 ? ' atual' : '') + '" aria-labelledby="calMes' + m + '">' +
-      '<div class="cal-mes-topo"><h3 id="calMes' + m + '">' + nomeMes + '</h3>' +
-      (totalMes ? '<span class="cal-mes-total">' + totalMes + (totalMes === 1 ? ' atividade' : ' atividades') + '</span>' : '') + '</div>' +
-      '<div class="cal-semana" aria-hidden="true">' + ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map(function(l) { return '<span>' + l + '</span>'; }).join('') + '</div>' +
-      '<div class="cal-dias" role="group" aria-labelledby="calMes' + m + '">';
-    for (var v = 0; v < primeiro.getDay(); v++) html += '<span></span>'; // dias em branco antes do dia 1
-    for (var d = 1; d <= diasNoMes; d++) {
-      var iso = calISO(CAL_ANO, m, d);
-      var lista = porDia[iso] || [];
-      var tipos = CAL_ORDEM_TIPOS.filter(function(t) { return lista.some(function(a) { return a.tipo === t; }); });
-      var rotulo = calDataLonga(iso) + (iso === hoje ? ' (hoje)' : '');
-      if (lista.length) {
-        rotulo += ' — ' + lista.length + (lista.length === 1 ? ' atividade: ' : ' atividades: ') +
-          tipos.map(function(t) { return CAL_TIPOS[t].rotulo; }).join(', ');
-      }
-      var chips = lista.slice().sort(function(a, b) { return CAL_ORDEM_TIPOS.indexOf(a.tipo) - CAL_ORDEM_TIPOS.indexOf(b.tipo); });
-      var maxChips = 2;
-      var chipsHtml = chips.slice(0, lista.length > maxChips ? maxChips - 1 : maxChips).map(function(a) {
-        var t = CAL_TIPOS[a.tipo] || CAL_TIPOS.OUTRO;
-        return '<i class="cal-chip" style="background:' + t.fundo + ';color:' + t.texto + ';border-left-color:' + t.cor + ';" data-t="' + t.curto + '"></i>';
-      }).join('') + (lista.length > maxChips ? '<i class="cal-chip mais" data-t="+' + (lista.length - maxChips + 1) + ' mais"></i>' : '');
-      html += '<button type="button" class="cal-dia' + (iso === hoje ? ' hoje' : '') + (iso === CAL_DIA_SELECIONADO ? ' sel' : '') + (lista.length ? ' tem' : '') + '"' +
-        ' data-data="' + iso + '" tabindex="' + (iso === CAL_DIA_FOCO ? 0 : -1) + '"' +
-        ' aria-pressed="' + (iso === CAL_DIA_SELECIONADO) + '"' + (iso === hoje ? ' aria-current="date"' : '') +
-        ' aria-label="' + escaparHtml(rotulo) + '">' +
-        '<span class="cal-num">' + d + '</span>' +
-        '<span class="cal-chips" aria-hidden="true">' + chipsHtml + '</span>' +
-        '</button>';
-    }
-    html += '</div></section>';
-  }
-  document.getElementById('calAno').innerHTML = html;
-  pintarPainelDoDia();
-}
-
-/* Painel lateral: atividades do dia selecionado */
-function pintarPainelDoDia() {
-  var iso = CAL_DIA_SELECIONADO;
-  var painel = document.getElementById('calDiaLista');
-  if (!iso) { painel.innerHTML = ''; return; }
-  document.getElementById('calDiaTitulo').textContent = calCapitalizar(calDataLonga(iso));
-
-  var hoje = dataLocalISO(new Date());
-  var lista = calAtividadesFiltradas().filter(function(a) { return calDiaDaAtividade(a) === iso; });
-  lista.sort(function(a, b) { return String(a.hora || '99:99').localeCompare(String(b.hora || '99:99')); });
+  var lista = calAtividadesFiltradas();
+  var alvo = document.getElementById('calAgenda');
+  var status = document.getElementById('calStatus');
+  var filtrando = !!(document.getElementById('calFiltroTipo').value || document.getElementById('calFiltroAnimal').value);
 
   if (!lista.length) {
-    painel.innerHTML = '<p class="texto-apoio" style="margin:0;">Nenhuma atividade neste dia.</p>';
+    status.textContent = '';
+    alvo.innerHTML = '<div class="ag-vazio"><strong>' +
+      (filtrando ? 'Nenhuma atividade com esses filtros' : 'Nenhuma atividade em ' + CAL_ANO) + '</strong>' +
+      (filtrando ? 'Mude os filtros para ver as outras atividades.' : 'Toque no botão + para registrar uma gestação, vermífugo, vacina ou aula de manejo.') + '</div>';
     return;
   }
-  painel.innerHTML = lista.map(function(a) {
-    var tipo = CAL_TIPOS[a.tipo] || CAL_TIPOS.OUTRO;
-    var id = Number(a.id);
-    var linhas = [];
-    if (a.hora) linhas.push('às ' + String(a.hora).slice(0, 5));
-    if (a.animal_brinco || a.animal_id) linhas.push('Animal: ' + (a.animal_brinco || ('#' + a.animal_id)));
-    var acoes = '';
-    if (calPodeEditar(a)) {
-      acoes = '<div class="acoes">' +
-        '<button type="button" class="cal-link" aria-label="Editar ' + escaparHtml(tipo.rotulo) + ' deste dia" onclick="abrirModalAtividade(' + id + ')">Editar</button>' +
-        '<button type="button" class="cal-link perigo" aria-label="Remover ' + escaparHtml(tipo.rotulo) + ' deste dia" onclick="removerAtividade(' + id + ')">Remover</button>' +
-        '</div>';
+  status.textContent = lista.length + (lista.length === 1 ? ' atividade' : ' atividades') + ' em ' + CAL_ANO + '.';
+
+  // agrupa por dia e ordena (dia, depois horário; "o dia todo" vem primeiro)
+  var porDia = {};
+  lista.forEach(function(a) { (porDia[calDiaDaAtividade(a)] = porDia[calDiaDaAtividade(a)] || []).push(a); });
+  var dias = Object.keys(porDia).sort();
+
+  var hoje = dataLocalISO(new Date());
+  var marcaHojeFeita = (hoje.slice(0, 4) !== String(CAL_ANO)); // fora do ano atual não há linha "Hoje"
+  var mesAtual = '';
+  var html = '';
+
+  function marcaHoje() {
+    marcaHojeFeita = true;
+    return '<div class="ag-hoje" role="separator" aria-label="Hoje"><i></i><span>Hoje · ' +
+      calDataDeISO(hoje).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }) + '</span><b></b></div>';
+  }
+
+  dias.forEach(function(iso) {
+    if (!marcaHojeFeita && iso >= hoje) html += marcaHoje();
+    var mes = iso.slice(0, 7);
+    if (mes !== mesAtual) {
+      mesAtual = mes;
+      html += '<h3 class="ag-mes">' + calCapitalizar(calDataDeISO(iso).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })) + '</h3>';
     }
-    return '<div class="cal-item">' +
-        '<span class="cal-tag" style="background:' + tipo.fundo + ';color:' + tipo.texto + ';">' + tipo.rotulo + (iso > hoje ? ' · agendada' : '') + '</span>' +
-        (linhas.length ? '<div><b>' + escaparHtml(linhas.join(' · ')) + '</b></div>' : '') +
-        (a.observacao ? '<div>' + escaparHtml(a.observacao) + '</div>' : '') +
-        (a.criado_por_nome ? '<div class="meta">Registrada por ' + escaparHtml(a.criado_por_nome) + '</div>' : '') +
-        acoes +
-      '</div>';
-  }).join('');
+    var d = calDataDeISO(iso);
+    var semana = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+    var atividades = porDia[iso].slice().sort(function(a, b) { return String(a.hora || '').localeCompare(String(b.hora || '')); });
+    html += '<div class="ag-dia' + (iso === hoje ? ' hoje' : '') + '">' +
+      '<div class="ag-data" aria-hidden="true"><span class="ag-sem">' + escaparHtml(semana) + '</span><span class="ag-num">' + d.getDate() + '</span></div>' +
+      '<div class="ag-eventos">' + atividades.map(function(a) { return blocoDaAtividadeCal(a, iso); }).join('') + '</div></div>';
+  });
+  if (!marcaHojeFeita) html += marcaHoje(); // hoje é depois de todas as atividades do ano
+  alvo.innerHTML = html;
+}
+
+/* Um bloco colorido da agenda: "Vacina — B-011" + horário / observação */
+function blocoDaAtividadeCal(a, iso) {
+  var tipo = CAL_TIPOS[a.tipo] || CAL_TIPOS.OUTRO;
+  var brinco = a.animal_brinco || (a.animal_id ? '#' + a.animal_id : '');
+  var titulo = tipo.rotulo + (brinco ? ' — ' + brinco : '');
+  var sub = [a.hora ? String(a.hora).slice(0, 5) : 'O dia todo'];
+  if (a.observacao) sub.push(a.observacao);
+  return '<button type="button" class="ag-evento" data-data="' + iso + '" style="background:' + tipo.solido + ';" onclick="abrirModalAtividade(' + Number(a.id) + ')">' +
+    '<span class="sr-only">' + escaparHtml(calDataLonga(iso)) + ': </span>' +
+    '<span class="tit">' + escaparHtml(titulo) + '</span>' +
+    '<span class="sub">' + escaparHtml(sub.join(' · ')) + '</span></button>';
 }
 
 /* ---------- navegação ---------- */
 
 function calMudarAno(delta) {
   CAL_ANO += delta;
-  CAL_DIA_SELECIONADO = null; // renderCalendario escolhe o dia certo do novo ano
-  renderCalendario();
+  renderCalendario(true);
 }
 
 function calIrParaHoje() {
-  var hoje = dataLocalISO(new Date());
-  CAL_ANO = Number(hoje.slice(0, 4));
-  CAL_DIA_SELECIONADO = hoje;
-  CAL_FOCAR_APOS_PINTAR = true;
-  renderCalendario();
+  CAL_ANO = new Date().getFullYear();
+  renderCalendario(true);
 }
 
-/* Marca um dia (clique, Enter ou Espaço): abre as atividades dele no painel lateral */
-function calSelecionarDia(iso, veioDoMouse) {
-  CAL_DIA_SELECIONADO = iso;
-  CAL_DIA_FOCO = iso;
-  document.querySelectorAll('#calAno .cal-dia').forEach(function(b) {
-    var ativo = b.getAttribute('data-data') === iso;
-    b.classList.toggle('sel', ativo);
-    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-    b.tabIndex = ativo ? 0 : -1;
-  });
-  pintarPainelDoDia();
-  if (veioDoMouse) { // em tela estreita o painel fica embaixo: leva a tela até ele
-    var caixa = document.getElementById('calDiaTitulo').getBoundingClientRect();
-    if (caixa.top > window.innerHeight || caixa.bottom < 0) document.getElementById('calDiaTitulo').scrollIntoView({ block: 'nearest' });
-  }
-}
+/* ---------- janela: criar / editar / ver ---------- */
 
-/* Setas movem o foco entre os dias (de mês em mês também); PageUp/PageDown trocam de mês */
-function calTeclado(e) {
-  var botao = e.target.closest ? e.target.closest('.cal-dia') : null;
-  if (!botao) return;
-  var atual = botao.getAttribute('data-data');
-  var alvo = null;
-  if (e.key === 'ArrowLeft') alvo = calSomarDias(atual, -1);
-  else if (e.key === 'ArrowRight') alvo = calSomarDias(atual, 1);
-  else if (e.key === 'ArrowUp') alvo = calSomarDias(atual, -7);
-  else if (e.key === 'ArrowDown') alvo = calSomarDias(atual, 7);
-  else if (e.key === 'PageUp') alvo = calSomarMeses(atual, -1);
-  else if (e.key === 'PageDown') alvo = calSomarMeses(atual, 1);
-  else return;
-  e.preventDefault();
-
-  if (alvo.slice(0, 4) !== String(CAL_ANO)) { // passou de dezembro para janeiro (ou o contrário)
-    CAL_ANO = Number(alvo.slice(0, 4));
-    CAL_DIA_SELECIONADO = alvo;
-    CAL_FOCAR_APOS_PINTAR = true;
-    renderCalendario();
-    return;
-  }
-  var destino = document.querySelector('#calAno .cal-dia[data-data="' + alvo + '"]');
-  if (!destino) return;
-  botao.tabIndex = -1;
-  destino.tabIndex = 0;
-  CAL_DIA_FOCO = alvo;
-  destino.focus();
-}
-
-/* ---------- modal: criar / editar ---------- */
-
-/* Mostra/esconde campos conforme o tipo (horário só na aula; animal obrigatório em gestação, vermífugo e vacina) */
+/* Campos que dependem do tipo: horário só na aula de manejo (e só se "o dia todo" estiver desligado);
+   animal obrigatório em gestação, vermífugo e vacina. */
 function atualizarCamposAtividade() {
-  var tipo = CAL_TIPOS[document.getElementById('atvTipo').value];
+  var valor = document.getElementById('atvTipo').value;
+  var tipo = CAL_TIPOS[valor];
   var exige = !!(tipo && tipo.exigeAnimal);
-  document.getElementById('atvHoraWrap').classList.toggle('hidden', document.getElementById('atvTipo').value !== 'AULA_MANEJO');
+  var ehAula = valor === 'AULA_MANEJO';
+  var diaTodo = document.getElementById('atvDiaTodo').checked;
+
+  document.getElementById('atvDiaTodoWrap').classList.toggle('hidden', !ehAula);
+  document.getElementById('atvHoraWrap').classList.toggle('hidden', !(ehAula && !diaTodo));
+  document.getElementById('atvHora').required = ehAula && !diaTodo;
   document.getElementById('atvDica').textContent = tipo ? tipo.dica : '';
+  document.getElementById('atvTipo').style.borderBottomColor = tipo ? tipo.solido : '#c8ead0';
+
   var select = document.getElementById('atvAnimal');
   select.required = exige;
   select.options[0].textContent = exige ? 'Selecione o animal' : 'Nenhum animal específico';
-  document.getElementById('atvAnimalRotulo').textContent = exige ? 'ANIMAL (obrigatório)' : 'ANIMAL (opcional)';
+  document.getElementById('atvAnimalRotulo').textContent = exige ? 'Animal (obrigatório)' : 'Animal (opcional)';
 }
 
-/* "+ Nova atividade" (sem id) ou "Editar" (com id). dataPadrao = dia já selecionado. */
+/* "+" (sem id) ou toque numa atividade (com id). dataPadrao: data já preenchida na nova atividade. */
 function abrirModalAtividade(id, dataPadrao) {
   elementoAntesDoModalCal = document.activeElement;
   calEditandoId = id ? Number(id) : null;
   var atividade = calEditandoId ? CAL_ATIVIDADES.filter(function(a) { return Number(a.id) === calEditandoId; })[0] : null;
+  var somenteLeitura = !!atividade && !calPodeEditar(atividade); // aluno olhando atividade de outra pessoa
 
   hideFormError('atividadeError');
   document.getElementById('formAtividade').reset();
@@ -1961,32 +1868,38 @@ function abrirModalAtividade(id, dataPadrao) {
     return '<option value="' + Number(a.id) + '">' + escaparHtml(nomeDoAnimalCal(a)) + '</option>';
   }).join('');
 
-  document.getElementById('modalAtividadeTitulo').textContent = atividade ? 'Editar atividade' : 'Nova atividade';
-  document.getElementById('btnSalvarAtividade').textContent = atividade ? 'Salvar alterações' : 'Salvar';
-  document.getElementById('btnRemoverAtividade').style.display = atividade ? 'inline-block' : 'none';
+  document.getElementById('modalAtividadeTitulo').textContent = !atividade ? 'Nova atividade' : (somenteLeitura ? 'Detalhes da atividade' : 'Editar atividade');
+  document.getElementById('btnSalvarAtividade').textContent = 'Salvar';
+  document.getElementById('btnSalvarAtividade').style.display = somenteLeitura ? 'none' : '';
+  document.getElementById('btnRemoverAtividade').style.display = (atividade && !somenteLeitura) ? 'inline-block' : 'none';
+  document.getElementById('atvMeta').textContent = (atividade && atividade.criado_por_nome) ? 'Registrada por ' + atividade.criado_por_nome : '';
 
   if (atividade) {
     document.getElementById('atvTipo').value = atividade.tipo;
     document.getElementById('atvData').value = calDiaDaAtividade(atividade);
+    document.getElementById('atvDiaTodo').checked = !atividade.hora;
     document.getElementById('atvHora').value = atividade.hora ? String(atividade.hora).slice(0, 5) : '';
     document.getElementById('atvAnimal').value = atividade.animal_id != null ? String(atividade.animal_id) : '';
     document.getElementById('atvObs').value = atividade.observacao || '';
   } else {
-    document.getElementById('atvData').value = dataPadrao || CAL_DIA_SELECIONADO || dataLocalISO(new Date());
+    document.getElementById('atvData').value = dataPadrao || dataLocalISO(new Date());
   }
   atualizarCamposAtividade();
+  ['atvTipo', 'atvData', 'atvDiaTodo', 'atvHora', 'atvAnimal', 'atvObs'].forEach(function(campo) {
+    document.getElementById(campo).disabled = somenteLeitura;
+  });
   document.getElementById('modalAtividade').style.display = 'flex';
-  document.getElementById('atvTipo').focus();
+  (somenteLeitura ? document.querySelector('#modalAtividade .atv-fechar') : document.getElementById('atvTipo')).focus();
 }
 
-/* restaurarFoco: devolve o foco a quem abriu o modal (não faz sentido se a tela vai ser redesenhada) */
+/* restaurarFoco: devolve o foco a quem abriu a janela (não faz sentido se a tela vai ser redesenhada) */
 function fecharModalAtividade(restaurarFoco) {
   document.getElementById('modalAtividade').style.display = 'none';
   if (restaurarFoco && elementoAntesDoModalCal && typeof elementoAntesDoModalCal.focus === 'function') elementoAntesDoModalCal.focus();
   elementoAntesDoModalCal = null;
 }
 
-/* Esc fecha; Tab / Shift+Tab ficam presos dentro do modal */
+/* Esc fecha; Tab / Shift+Tab ficam presos dentro da janela */
 document.addEventListener('keydown', function(e) {
   var modal = document.getElementById('modalAtividade');
   if (!modal || modal.style.display !== 'flex') return;
@@ -2001,15 +1914,21 @@ document.addEventListener('keydown', function(e) {
   else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus(); }
 });
 
+/* Clicar fora da folha (no fundo escuro) também fecha */
+document.getElementById('modalAtividade').addEventListener('mousedown', function(e) {
+  if (e.target === this) fecharModalAtividade(true);
+});
+
 /* onsubmit do #formAtividade — POST (nova) ou PATCH (edição) em /ueps/:uepId/atividades */
 function salvarAtividade() {
   var botao = document.getElementById('btnSalvarAtividade');
   var rotulo = botao.textContent;
   var tipo = document.getElementById('atvTipo').value;
+  var comHorario = tipo === 'AULA_MANEJO' && !document.getElementById('atvDiaTodo').checked;
   var payload = {
     tipo: tipo,
     data: document.getElementById('atvData').value,
-    hora: tipo === 'AULA_MANEJO' ? (document.getElementById('atvHora').value || null) : null,
+    hora: comHorario ? (document.getElementById('atvHora').value || null) : null,
     animalId: document.getElementById('atvAnimal').value ? Number(document.getElementById('atvAnimal').value) : null,
     observacao: document.getElementById('atvObs').value.trim() || null
   };
@@ -2022,9 +1941,8 @@ function salvarAtividade() {
     mostrarToast(calEditandoId ? 'Atividade atualizada' : 'Atividade registrada');
     fecharModalAtividade(false);
     CAL_ANO = Number(payload.data.slice(0, 4));
-    CAL_DIA_SELECIONADO = payload.data;   // abre o dia da atividade no painel
-    CAL_FOCAR_APOS_PINTAR = true;
-    renderCalendario();
+    CAL_FOCAR_DATA = payload.data;
+    renderCalendario(false);
   }).catch(function(err) {
     showFormError('atividadeError', err instanceof TypeError ? 'Não foi possível falar com o servidor. Tente de novo em instantes.' : err.message);
   }).then(function() {
@@ -2033,7 +1951,7 @@ function salvarAtividade() {
   });
 }
 
-/* "Remover" (painel do dia ou dentro do modal de edição) — DELETE */
+/* "Remover atividade" (dentro da janela de edição) — DELETE */
 function removerAtividade(id) {
   var a = CAL_ATIVIDADES.filter(function(x) { return Number(x.id) === Number(id); })[0];
   if (!a) return;
@@ -2043,8 +1961,7 @@ function removerAtividade(id) {
   apiFetch('/ueps/' + currentSetor + '/atividades/' + Number(id), { method: 'DELETE' }).then(function() {
     mostrarToast('Atividade removida');
     if (document.getElementById('modalAtividade').style.display === 'flex') fecharModalAtividade(false);
-    CAL_FOCAR_APOS_PINTAR = true;
-    renderCalendario();
+    renderCalendario(false);
   }).catch(function(err) {
     var msg = err instanceof TypeError ? 'Não foi possível falar com o servidor. Tente de novo em instantes.' : err.message;
     if (document.getElementById('modalAtividade').style.display === 'flex') showFormError('atividadeError', msg);
@@ -2054,14 +1971,7 @@ function removerAtividade(id) {
 
 /* ---------- ligações que rodam uma vez, quando a página carrega ---------- */
 
-(function iniciarCalendario() {
-  var ano = document.getElementById('calAno');
-  ano.addEventListener('click', function(e) {
-    var botao = e.target.closest('.cal-dia');
-    if (botao) calSelecionarDia(botao.getAttribute('data-data'), true);
-  });
-  ano.addEventListener('keydown', calTeclado);
-
+(function iniciarAcessibilidadeDasAbas() {
   // As abas são <div>: sem isto não dá para chegar nelas (nem acioná-las) pelo teclado.
   document.querySelectorAll('.tab').forEach(function(aba) {
     aba.setAttribute('role', 'button');
@@ -2540,7 +2450,7 @@ function logout() {
   reveal(document.getElementById('authFlow'));
 
   // calendário e documentos são da conta que saiu — não podem aparecer para a próxima
-  CAL_ATIVIDADES = []; CAL_ANIMAIS = []; CAL_ANIMAIS_UEP = null; CAL_DIA_SELECIONADO = null; CAL_DIA_FOCO = null;
+  CAL_ATIVIDADES = []; CAL_ANIMAIS = []; CAL_ANIMAIS_UEP = null;
   DOCUMENTOS_CACHE = [];
   UNIR_SELECAO = [];
   currentUser = null;
