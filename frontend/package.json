@@ -5,10 +5,12 @@
   "description": "Frontend estático (HTML/CSS/JS) da Gestão UEP",
   "scripts": {
     "lint:css": "stylelint \"src/**/*.css\"",
-    "lint:html": "htmlhint \"src/**/*.html\""
+    "lint:html": "htmlhint \"src/**/*.html\"",
+    "test": "playwright test"
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@playwright/test": "1.60",
     "htmlhint": "^1.1.4",
     "stylelint": "^16.26.1",
     "stylelint-config-recommended": "^14.0.1"
