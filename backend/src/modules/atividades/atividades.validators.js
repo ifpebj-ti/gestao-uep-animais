@@ -6,6 +6,13 @@ export const ATIVIDADE_TIPOS = Object.freeze(["GESTACAO", "VERMIFUGO", "VACINA",
 // Tipos que sempre se referem a um animal específico (o front exige também).
 export const TIPOS_COM_ANIMAL = Object.freeze(["GESTACAO", "VERMIFUGO", "VACINA"]);
 
+// Na agenda do calendário só a aula de manejo tem horário; os outros tipos são
+// "o dia todo" (o front manda hora: null para eles).
+export const TIPOS_COM_HORARIO = Object.freeze(["AULA_MANEJO"]);
+
+// Mesmo limite do campo Observação do front (maxlength="300").
+export const OBSERVACAO_MAX = 300;
+
 export const ANO_MINIMO = 2000;
 export const ANO_MAXIMO = 2100;
 
@@ -60,7 +67,7 @@ export function validarAtividade(body = {}, { parcial = false } = {}) {
   if (presente(body, "animalId")) {
     dados.animal_id = body.animalId === null || body.animalId === "" ? null : parseId(body.animalId, "animalId");
   }
-  if (presente(body, "observacao")) dados.observacao = parseTexto(body.observacao, "observacao", { max: 1000 });
+  if (presente(body, "observacao")) dados.observacao = parseTexto(body.observacao, "observacao", { max: OBSERVACAO_MAX });
 
   return dados;
 }
@@ -75,5 +82,17 @@ export function validarEstadoFinal(final, animal) {
   }
   if (final.tipo === "GESTACAO" && animal && animal.sexo !== "FEMEA") {
     throw ApiError.badRequest("Gestação só pode ser registrada para uma fêmea.");
+  }
+}
+
+/**
+ * Tipos sem horário ficam "o dia todo": se o estado final não é aula de manejo,
+ * a hora é zerada (inclusive quando um PATCH troca AULA_MANEJO por outro tipo
+ * sem mandar hora). Altera `dados` para que a gravação leve hora = null.
+ */
+export function ajustarHorario(final, dados) {
+  if (!TIPOS_COM_HORARIO.includes(final.tipo) && final.hora) {
+    final.hora = null;
+    dados.hora = null;
   }
 }

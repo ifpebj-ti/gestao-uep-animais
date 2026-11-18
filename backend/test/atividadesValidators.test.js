@@ -5,6 +5,8 @@ import {
   validarEstadoFinal,
   parseHora,
   parseAno,
+  ajustarHorario,
+  OBSERVACAO_MAX,
 } from "../src/modules/atividades/atividades.validators.js";
 import { podeAlterar } from "../src/modules/atividades/atividades.service.js";
 
@@ -50,4 +52,33 @@ test("podeAlterar: Diretoria, Professor ou o autor", () => {
   assert.equal(podeAlterar({ role: "ALUNO", id: 7 }, atividade), true);
   assert.equal(podeAlterar({ role: "TECNICO", id: 8 }, atividade), false);
   assert.equal(podeAlterar({ role: "ALUNO", id: 7 }, { criado_por: null }), false);
+});
+
+test("observacao: limite de 300 caracteres, igual ao campo do front", () => {
+  assert.equal(OBSERVACAO_MAX, 300);
+  assert.equal(validarAtividade({ tipo: "OUTRO", data: "2026-05-01", observacao: "x".repeat(300) }).observacao.length, 300);
+  assert.throws(() => validarAtividade({ tipo: "OUTRO", data: "2026-05-01", observacao: "x".repeat(301) }), erro400);
+});
+
+test("ajustarHorario: so aula de manejo guarda hora", () => {
+  const aula = { tipo: "AULA_MANEJO", hora: "14:30" };
+  const dadosAula = { hora: "14:30" };
+  ajustarHorario(aula, dadosAula);
+  assert.equal(dadosAula.hora, "14:30");
+
+  const vacina = { tipo: "VACINA", hora: "08:00" };
+  const dadosVacina = { tipo: "VACINA", hora: "08:00" };
+  ajustarHorario(vacina, dadosVacina);
+  assert.equal(vacina.hora, null);
+  assert.equal(dadosVacina.hora, null);
+
+  // PATCH que troca a aula por outro tipo sem mandar hora: a hora antiga cai
+  const final = { tipo: "OUTRO", hora: "10:00" };
+  const dadosPatch = { tipo: "OUTRO" };
+  ajustarHorario(final, dadosPatch);
+  assert.deepEqual(dadosPatch, { tipo: "OUTRO", hora: null });
+
+  const semHora = {};
+  ajustarHorario({ tipo: "GESTACAO", hora: null }, semHora);
+  assert.deepEqual(semHora, {});
 });
