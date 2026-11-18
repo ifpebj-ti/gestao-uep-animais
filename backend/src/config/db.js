@@ -8,12 +8,31 @@ const { Pool, types } = pg;
 // e num servidor com fuso diferente do de Brasília a data "voltava" um dia.
 types.setTypeParser(1082, (valor) => valor);
 
+export const SENHA_DB_PADRAO = "changeme";
+
+/*
+ * Em produção a senha do banco é obrigatória e não pode ser o valor de
+ * exemplo do .env.example ("changeme"): antes, sem DB_PASSWORD, a API subia
+ * silenciosamente com essa senha. Fora de produção o padrão continua valendo
+ * (é o mesmo do docker-compose.yml de desenvolvimento).
+ */
+export function resolverSenhaDb(env = process.env) {
+  const senha = env.DB_PASSWORD;
+  if (env.NODE_ENV === "production" && (!senha || senha === SENHA_DB_PADRAO)) {
+    throw new Error(
+      "DB_PASSWORD ausente ou com o valor de exemplo em produção. " +
+        "Defina uma senha forte para o Postgres no .env (a mesma de POSTGRES_PASSWORD)."
+    );
+  }
+  return senha || SENHA_DB_PADRAO;
+}
+
 export const pool = new Pool({
   host: process.env.DB_HOST || "db",
   port: Number(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME || "gestao_uep",
   user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "changeme",
+  password: resolverSenhaDb(),
   max: 10,
   idleTimeoutMillis: 30000,
 });
