@@ -23,6 +23,21 @@ pool.on("error", (err) => {
 });
 
 /**
+ * O que vai para o log quando uma query falha. Os VALORES dos parâmetros
+ * ficam de fora: eles incluem hash de senha (users), e-mails e o conteúdo
+ * inteiro dos PDFs enviados (documentos, BYTEA de até 10 MB). Basta saber a
+ * query, o código do Postgres e quantos parâmetros havia.
+ */
+export function resumoErroSql(text, params, err) {
+  return {
+    text,
+    params: Array.isArray(params) ? params.length : 0,
+    code: err?.code,
+    message: err?.message,
+  };
+}
+
+/**
  * Helper padrão de query. Mantém o código dos repositories limpo
  * e centraliza log de erros de SQL.
  */
@@ -35,7 +50,7 @@ export async function query(text, params) {
     }
     return result;
   } catch (err) {
-    console.error("Erro SQL:", { text, params, message: err.message });
+    console.error("Erro SQL:", resumoErroSql(text, params, err));
     throw err;
   }
 }
