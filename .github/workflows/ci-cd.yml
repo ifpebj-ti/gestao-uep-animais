@@ -211,6 +211,9 @@ jobs:
     needs: [test, migrate]
     runs-on: ubuntu-latest
     strategy:
+      # Sem fail-fast: se o Trivy barrar uma imagem, as outras continuam e o
+      # log mostra de uma vez o que precisa ser corrigido em cada servico.
+      fail-fast: false
       matrix:
         service: [frontend, backend, data]
     permissions:
@@ -251,12 +254,26 @@ jobs:
             $(echo "${{ steps.meta.outputs.tags }}" | sed 's/^/-t /') \
             ./${{ matrix.service }}
 
-      - name: Analise de vulnerabilidades (Trivy)
-        uses: aquasecurity/trivy-action@master
+      # Trivy fixado por commit (v0.36.0), nao em @master: uma tag ou branch
+      # pode ser movida para um codigo diferente sem a gente perceber.
+      # Gate 1: qualquer CRITICAL derruba a esteira (mesmo sem correcao).
+      - name: Analise de vulnerabilidades (Trivy) - CRITICAL
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.meta.outputs.version }}
           severity: "CRITICAL"
           exit-code: "1"
+
+      # Gate 2: HIGH so derruba quando ja existe versao corrigida
+      # (ignore-unfixed); sem correcao publicada nao ha o que atualizar.
+      - name: Analise de vulnerabilidades (Trivy) - HIGH com correcao
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.meta.outputs.version }}
+          severity: "HIGH"
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true
 
       - name: Publicar imagem no registry
         if: github.event_name == 'push'
