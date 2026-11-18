@@ -1,29 +1,37 @@
-FROM node:20-alpine
-
-# Atualiza pacotes do SO para corrigir vulnerabilidades criticas conhecidas
-# antes de publicar a imagem.
-RUN apk update && apk upgrade --no-cache
-
-# O node:20-alpine vem com um npm global mais antigo, que embute sua própria
-# cópia do pacote "tar" (usada internamente pelo npm pra extrair pacotes do
-# registro) — essa cópia é o que o Trivy aponta como CRITICAL (CVE-2026-59873,
-# gzip bomb), mesmo sem "tar" aparecer em nenhum lugar do nosso package.json.
-# Como não é uma dependência nossa, não dá pra corrigir no package.json:
-# atualizar o npm em si já traz uma versão do tar sem essa falha (fixed a
-# partir do npm@11.18.0, que já embute tar@7.5.19+).
-#
-# NÃO usar "npm@latest" aqui: a partir do npm 12 o próprio npm passou a
-# exigir Node >=22, e essa imagem roda Node 20 (o "npm install -g npm@latest"
-# quebra o build com EBADENGINE). 11.18.0 é a versão fixa mais antiga já
-# corrigida, e roda em Node ^20.17.0 || >=22.9.0 — compatível com o node:20
-# desta imagem.
-RUN npm install -g npm@11.18.0
+# ---------------------------------------------------------------------------
+# Etapa 1 (deps): instala SO as dependencias de producao. O npm so existe
+# aqui; esta etapa nao vai para a imagem publicada.
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
+# ---------------------------------------------------------------------------
+# Etapa 2 (imagem final): so o Node, o node_modules da etapa anterior e o
+# codigo. A API roda com "node" direto, entao npm, npx, yarn e corepack sao
+# removidos: o npm global embute pacotes proprios (tar, undici,
+# brace-expansion, ip-address...) que o Trivy aponta como HIGH/CRITICAL
+# mesmo sem fazerem parte do nosso package.json. Sem eles na imagem, nao ha o
+# que corrigir nem o que explorar. (Antes a imagem atualizava o npm para
+# 11.18.0 so para fugir de um CVE do tar embutido; removendo o npm isso deixa
+# de ser necessario.)
+# ---------------------------------------------------------------------------
+FROM node:20-alpine
+
+# Atualiza pacotes do SO para corrigir vulnerabilidades conhecidas e remove
+# os gerenciadores de pacote, que nao sao usados em tempo de execucao.
+RUN apk update && apk upgrade --no-cache \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+           /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
 COPY src/ ./src/
 
 # Roda como o usuario "node" (ja existe na imagem oficial), nao como root:
