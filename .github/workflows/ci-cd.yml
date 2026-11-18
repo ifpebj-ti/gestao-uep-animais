@@ -211,6 +211,9 @@ jobs:
     needs: [test, migrate]
     runs-on: ubuntu-latest
     strategy:
+      # Sem fail-fast: se o Trivy barrar uma imagem, as outras continuam e o
+      # log mostra de uma vez o que precisa ser corrigido em cada servico.
+      fail-fast: false
       matrix:
         service: [frontend, backend, data]
     permissions:
