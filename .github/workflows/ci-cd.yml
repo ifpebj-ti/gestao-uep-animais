@@ -45,9 +45,35 @@ jobs:
           npm run lint:html
           npm run lint:css
 
+  # 1b. SAST — Semgrep no codigo do backend e do servico de dados. Achado de
+  #     severidade ERROR derruba a esteira; WARNING so aparece no log.
+  #     Versao fixa (nao "latest") para a regra nao mudar sem a gente saber.
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Semgrep
+        run: pip install semgrep==1.182.0
+
+      - name: Semgrep (bloqueia achados ERROR)
+        run: |
+          semgrep scan \
+            --config p/javascript \
+            --config p/python \
+            --config p/secrets \
+            --metrics=off \
+            --severity ERROR \
+            --error \
+            backend/src data/scripts
+
   # 2. BUILD — validacao de que cada servico "compila"/monta sem erros
   build:
-    needs: lint
+    needs: [lint, sast]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
