@@ -1,0 +1,104 @@
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 9 * * 1" # segunda-feira: pega CVE nova mesmo sem PR
+
+permissions:
+  contents: read
+
+jobs:
+  # SCA — dependencias com vulnerabilidade High/Critical derrubam a esteira.
+  # --omit=dev: so o que vai para producao; alertas moderate de ferramentas de
+  # desenvolvimento aparecem no Dependabot, mas nao bloqueiam o merge.
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: npm audit (backend)
+        working-directory: ./backend
+        run: npm ci && npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (frontend)
+        working-directory: ./frontend
+        run: npm ci && npm audit --omit=dev --audit-level=high
+
+      - name: pip-audit (data)
+        working-directory: ./data
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+  # Bloqueia PR que adiciona dependencia vulneravel (compara com a main).
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  # Segredos — varre TODO o historico do Git, nao so os arquivos atuais.
+  # Falso positivo conhecido: registrar o fingerprint em .gitleaksignore.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historico completo
+
+      - name: Gitleaks (historico)
+        # TODO: trocar "latest" por uma tag fixa (github.com/gitleaks/gitleaks/releases)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            git /repo --redact -v
+
+  # DAST — sobe o sistema no proprio runner (ambiente temporario) e roda o
+  # ZAP baseline (passivo). O relatorio fica como artefato do job.
+  dast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Subir o sistema
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:3000/health && exit 0
+            sleep 5
+          done
+          docker compose logs
+          exit 1
+
+      - name: ZAP baseline (passivo)
+        run: |
+          mkdir -p zap && chmod 777 zap
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:8080 -r zap-report.html -I
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-report
+          path: zap/zap-report.html
+
+      - name: Derrubar
+        if: always()
+        run: docker compose down -v
