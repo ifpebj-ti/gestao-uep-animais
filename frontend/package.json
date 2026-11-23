@@ -11,7 +11,7 @@
   "devDependencies": {
     "htmlhint": "^1.1.4",
     "stylelint": "^16.26.1",
-    "stylelint-config-recommended": "^14.0.1"
+    "stylelint-config-recommended": "^19.1.0"
   },
   "overrides": {
     "minimatch": "^11.0.9",
