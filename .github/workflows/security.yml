@@ -58,15 +58,17 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # historico completo
-
       - name: Gitleaks (historico)
-        # TODO: trocar "latest" por uma tag fixa (github.com/gitleaks/gitleaks/releases)
         run: |
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
-            git /repo --redact -v
+            git /repo --redact -v --no-banner \
+            --report-format json --report-path /repo/gitleaks-report.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
 
   # DAST — sobe o sistema no proprio runner (ambiente temporario) e roda o
   # ZAP baseline (passivo). O relatorio fica como artefato do job.
