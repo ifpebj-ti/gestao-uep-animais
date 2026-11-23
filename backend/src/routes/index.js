@@ -9,20 +9,18 @@ import documentosRoutes from "../modules/documentos/documentos.routes.js";
 
 const router = Router();
 
-// Sprint 3
 router.use("/auth", authRoutes);
 router.use("/users", usersRoutes);
 
-// Sprint 4 (inclui rotas aninhadas de animais por UEP)
+// As rotas de dentro de uma UEP (animais, estoque, compras, atividades)
+// ficam aninhadas em /ueps/:uepId para passar pelo isolamento por setor.
 router.use("/ueps", uepsRoutes);
 
-// Sprint 5: também exposto no nível raiz para censo/busca entre todas as UEPs
+// Na raiz, censo e busca consideram todas as UEPs que o usuário enxerga.
 router.use("/animais", animaisRoutes);
 
-// Sprint 11: painel de alertas de estoque entre as UEPs do usuário
 router.use("/estoque", estoqueRaizRouter);
 
-// Sprint 13: relatórios em PDF/Excel e documentos (notas fiscais / união de PDFs)
 router.use("/relatorios", relatoriosRoutes);
 router.use("/documentos", documentosRoutes);
 

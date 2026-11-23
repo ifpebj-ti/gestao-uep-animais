@@ -80,7 +80,6 @@ export const animaisService = {
     return carregarNoEscopo(escopo, id);
   },
 
-  // Busca por identificador único: brinco, corte australiano ou SISBOV
   async searchByIdentifier(escopo, params = {}) {
     const brinco = parseTexto(params.brinco, "brinco", { max: 50 });
     const corteAustraliano = parseTexto(params.corteAustraliano, "corteAustraliano", { max: 50 });
@@ -93,7 +92,6 @@ export const animaisService = {
     return animaisRepository.findByIdentifier({ brinco, corteAustraliano, sisbov, uepIds: escopo });
   },
 
-  // Censo: total de animais por categoria/sexo, com os mesmos filtros da listagem
   async censo(escopo, filtros = {}) {
     const consulta = { ...filtros, uepIds: escopo };
     const [porCategoria, porRaca, porEstagioVida, total] = await Promise.all([
@@ -137,12 +135,10 @@ export const animaisService = {
     return animaisRepository.update(atual.id, { ...dados, ...disponibilidade });
   },
 
-  // GET .../animais/disponibilidade -> resumo do setor (Sprint 7)
   async disponibilidade(escopo, filtros = {}) {
     return animaisRepository.resumoDisponibilidade({ ...filtros, uepIds: escopo });
   },
 
-  // GET .../animais/:id/genealogia -> o animal, pai, mãe e filhos (Sprint 6)
   async genealogia(escopo, id) {
     const animal = await carregarNoEscopo(escopo, id);
     const [pai, mae, filhos] = await Promise.all([

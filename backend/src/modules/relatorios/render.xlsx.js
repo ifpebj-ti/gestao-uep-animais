@@ -78,12 +78,11 @@ function planilhaXml(relatorio, secao) {
   const cols = secao.colunas
     .map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${Math.max(10, Math.min(60, (c.peso ?? 1) * 14))}" customWidth="1"/>`)
     .join("");
-  // congela o cabeçalho da tabela ao rolar
-  const pane = `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${linhaCabecalho}" topLeftCell="A${linhaCabecalho + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
+  const cabecalhoCongelado = `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${linhaCabecalho}" topLeftCell="A${linhaCabecalho + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
   return (
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
     `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
-    `${pane}<cols>${cols}</cols><sheetData>${linhas.join("")}</sheetData></worksheet>`
+    `${cabecalhoCongelado}<cols>${cols}</cols><sheetData>${linhas.join("")}</sheetData></worksheet>`
   );
 }
 

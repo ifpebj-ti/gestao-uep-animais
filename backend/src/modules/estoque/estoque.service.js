@@ -24,11 +24,9 @@ export const estoqueService = {
   async listInsumos(uepIdRaw) {
     const uepId = parseId(uepIdRaw, "uepId");
     await assertUepExists(uepId);
-    // Sprint 11: cada insumo já sai com previsao_dias e nivel_alerta
     return (await estoqueRepository.findInsumos(uepId)).map(avaliarNivel);
   },
 
-  // GET /ueps/:uepId/estoque/alertas (Sprint 11)
   async alertasDaUep(uepIdRaw) {
     const uepId = parseId(uepIdRaw, "uepId");
     await assertUepExists(uepId);

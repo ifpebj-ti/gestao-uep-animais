@@ -129,8 +129,8 @@ export const documentosService = {
     const partes = [];
     for (const p of pedidos) {
       if (p.origem === "documento") {
-        const a = porId.get(p.id);
-        partes.push({ nome: a.nome_original, buffer: a.conteudo });
+        const documento = porId.get(p.id);
+        partes.push({ nome: documento.nome_original, buffer: documento.conteudo });
       } else {
         const { relatorio: tipo, uepId, dataInicio, dataFim, dias } = p.params;
         const gerado = await gerarRelatorio(

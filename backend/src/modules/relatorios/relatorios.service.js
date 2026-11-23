@@ -60,8 +60,6 @@ function brData(iso) {
   return `${d}/${m}/${a}`;
 }
 
-// ---------------------------------------------------------------- tipos
-
 async function censoGeral({ uepIds }) {
   const filtros = { uepIds };
   const [porUep, porCategoria, porRaca, porEstagio, disponibilidade] = await Promise.all([
@@ -278,8 +276,6 @@ export const TIPOS = Object.freeze({
   "movimentacao-estoque": { montar: movimentacaoEstoque, usaPeriodo: true },
   "necessidades-compras": { montar: necessidadesCompras, usaPeriodo: false },
 });
-
-// ------------------------------------------------------------ validação
 
 /**
  * Valida tipo e parâmetros (puro, sem banco — ver test/relatorios.test.js).

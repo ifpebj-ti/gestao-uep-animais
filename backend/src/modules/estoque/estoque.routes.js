@@ -19,7 +19,6 @@ router.patch(
 );
 
 router.get("/estoque/movimentacoes", authenticate, estoqueController.listMovimentacoes);
-// Sprint 11: insumos em nível crítico/atenção desta UEP
 router.get("/estoque/alertas", authenticate, estoqueController.alertasDaUep);
 router.post(
   "/estoque/movimentacoes",

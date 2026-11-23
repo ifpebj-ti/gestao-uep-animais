@@ -42,24 +42,20 @@ export const animaisController = {
     res.json(animal);
   }),
 
-  // GET /animais/buscar?brinco=...&corteAustraliano=...&sisbov=...
   search: asyncHandler(async (req, res) => {
     const resultados = await animaisService.searchByIdentifier(await escopoDe(req), req.query);
     res.json(resultados);
   }),
 
-  // GET /animais/censo -> contagem por categoria/sexo (Sprint 5)
   censo: asyncHandler(async (req, res) => {
     const resultado = await animaisService.censo(await escopoDe(req), validarFiltros(req.query));
     res.json(resultado);
   }),
 
-  // GET /animais/disponibilidade (Sprint 7)
   disponibilidade: asyncHandler(async (req, res) => {
     res.json(await animaisService.disponibilidade(await escopoDe(req), validarFiltros(req.query)));
   }),
 
-  // GET /animais/:id/genealogia (Sprint 6)
   genealogia: asyncHandler(async (req, res) => {
     res.json(await animaisService.genealogia(await escopoDe(req, null), req.params.id));
   }),
