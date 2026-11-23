@@ -40,20 +40,20 @@ function larguras(colunas, larguraUtil) {
   return colunas.map((c) => ((c.peso ?? 1) / pesoTotal) * larguraUtil);
 }
 
-function cabecalhoTabela(doc, colunas, ws, y) {
-  const larguraUtil = ws.reduce((a, b) => a + b, 0);
+function cabecalhoTabela(doc, colunas, largurasColunas, y) {
+  const larguraUtil = largurasColunas.reduce((soma, largura) => soma + largura, 0);
   doc.rect(MARGEM, y, larguraUtil, ALTURA_LINHA).fill(COR_PRIMARIA);
   doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(8.5);
   let x = MARGEM;
   colunas.forEach((c, i) => {
     doc.text(c.rotulo, x + 4, y + 5, {
-      width: ws[i] - 8,
+      width: largurasColunas[i] - 8,
       height: ALTURA_LINHA - 6,
       align: c.alinhar ?? "left",
       lineBreak: false,
       ellipsis: true,
     });
-    x += ws[i];
+    x += largurasColunas[i];
   });
   return y + ALTURA_LINHA;
 }
@@ -73,26 +73,26 @@ function desenharSecao(doc, secao) {
     return;
   }
 
-  const ws = larguras(secao.colunas, larguraUtil);
-  let y = cabecalhoTabela(doc, secao.colunas, ws, doc.y);
+  const largurasColunas = larguras(secao.colunas, larguraUtil);
+  let y = cabecalhoTabela(doc, secao.colunas, largurasColunas, doc.y);
 
   secao.linhas.forEach((linha, idx) => {
     if (y + ALTURA_LINHA > limiteY()) {
       doc.addPage();
-      y = cabecalhoTabela(doc, secao.colunas, ws, MARGEM);
+      y = cabecalhoTabela(doc, secao.colunas, largurasColunas, MARGEM);
     }
     if (idx % 2 === 1) doc.rect(MARGEM, y, larguraUtil, ALTURA_LINHA).fill(COR_LINHA_PAR);
     doc.fillColor(COR_TEXTO).font(linha.__destaque ? "Helvetica-Bold" : "Helvetica").fontSize(8.5);
     let x = MARGEM;
     secao.colunas.forEach((c, i) => {
       doc.text(formatarCelula(linha[c.chave], linha.__destaque), x + 4, y + 5, {
-        width: ws[i] - 8,
+        width: largurasColunas[i] - 8,
         height: ALTURA_LINHA - 6, // com height + ellipsis, texto longo é cortado com reticências
         align: c.alinhar ?? "left",
         lineBreak: false,
         ellipsis: true,
       });
-      x += ws[i];
+      x += largurasColunas[i];
     });
     y += ALTURA_LINHA;
   });

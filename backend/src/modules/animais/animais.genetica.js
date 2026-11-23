@@ -59,8 +59,8 @@ export function calcularIdadeMeses(dataNascimento, hoje) {
 /** "AAAA-MM-DD" a partir de texto (corta o horário, se vier) ou de um Date (UTC). */
 export function paraISO(data) {
   if (typeof data === "string") return data.slice(0, 10);
-  const d = new Date(data);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  const dia = new Date(data);
+  return `${dia.getUTCFullYear()}-${String(dia.getUTCMonth() + 1).padStart(2, "0")}-${String(dia.getUTCDate()).padStart(2, "0")}`;
 }
 
 export function calcularEstagioVida(categoria, idadeMeses) {

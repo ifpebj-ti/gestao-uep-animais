@@ -92,7 +92,6 @@ function buildFilters(filters = {}) {
     params.push(estagioVida);
     conditions.push(`(${SQL_ESTAGIO_VIDA}) = $${params.length}`);
   }
-  // Busca livre por identificador: brinco, corte australiano ou SISBOV
   if (busca) {
     params.push(`%${escaparLike(busca)}%`);
     const idx = params.length;
@@ -142,7 +141,6 @@ export const animaisRepository = {
     return rows[0] ?? null;
   },
 
-  // Identificadores são únicos: usados para localizar um animal específico
   async findByIdentifier({ brinco, corteAustraliano, sisbov, uepIds }) {
     // Os identificadores sao alternativos entre si (OR), mas o escopo da UEP
     // e restritivo (AND) — sem o parenteses o uep_id entrava no OR e a busca
@@ -178,7 +176,6 @@ export const animaisRepository = {
     return rows;
   },
 
-  // Censo: contagem de animais agrupada por categoria (e opcionalmente sexo)
   async countByCategoria(filters) {
     const { where, params } = buildFilters(filters);
     const { rows } = await query(
@@ -192,7 +189,6 @@ export const animaisRepository = {
     return rows;
   },
 
-  // Censo: contagem de animais agrupada por raca (Sprint 5)
   async countByRaca(filters) {
     const { where, params } = buildFilters(filters);
     const { rows } = await query(
@@ -221,7 +217,6 @@ export const animaisRepository = {
     return rows;
   },
 
-  // Disponibilidade (Sprint 7): totais, por motivo e por categoria.
   async resumoDisponibilidade(filters) {
     const { where, params } = buildFilters(filters);
     const [totais, porMotivo, porCategoria] = await Promise.all([

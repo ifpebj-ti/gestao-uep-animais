@@ -12,11 +12,11 @@ import {
 
 function parseDias(value) {
   if (value === undefined || value === null || value === "") return DIAS_PADRAO;
-  const n = typeof value === "string" ? Number(value) : value;
-  if (!Number.isInteger(n) || n < 1 || n > DIAS_MAX) {
+  const dias = typeof value === "string" ? Number(value) : value;
+  if (!Number.isInteger(dias) || dias < 1 || dias > DIAS_MAX) {
     throw ApiError.badRequest(`dias deve ser um inteiro entre 1 e ${DIAS_MAX}.`);
   }
-  return n;
+  return dias;
 }
 
 export const comprasService = {

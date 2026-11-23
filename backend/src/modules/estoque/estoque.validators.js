@@ -1,8 +1,6 @@
 import { ApiError } from "../../utils/ApiError.js";
 
-// parseId/parseTexto/parseData ficam em utils/validacao.js (usados por todos
-// os modulos); reexportados
-// aqui para nao quebrar quem ja importa daqui.
+// Reexportados porque outros módulos e testes já importam daqui.
 export { parseId, parseTexto, parseData } from "../../utils/validacao.js";
 
 // Maior valor aceito em saldo/quantidade (NUMERIC(14,3) comporta ate 11

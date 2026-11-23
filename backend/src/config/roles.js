@@ -1,4 +1,3 @@
-// RBAC - papéis do sistema
 export const ROLES = Object.freeze({
   ADMIN: "ADMIN",
   PROFESSOR: "PROFESSOR",
@@ -9,13 +8,10 @@ export const ROLES = Object.freeze({
 
 export const ALL_ROLES = Object.values(ROLES);
 
-// Papéis com permissão de escrita (criar/atualizar/excluir)
 export const WRITE_ROLES = [ROLES.ADMIN, ROLES.PROFESSOR, ROLES.TECNICO];
 
-// Papéis apenas leitura (consultas)
 export const READ_ONLY_ROLES = [ROLES.ESTAGIARIO, ROLES.ALUNO];
 
-// Papéis que formam a equipe de um Professor (aba "Minha Equipe")
 export const TEAM_ROLES = [ROLES.ALUNO, ROLES.TECNICO, ROLES.ESTAGIARIO];
 
 // Quem pode entrar nas rotas de gestão de usuários. O QUE cada um enxerga
