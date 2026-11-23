@@ -53,6 +53,7 @@ Outros links:
 
 - 📊 [Backlog e Requisitos (GitHub Projects)](https://github.com/orgs/ifpebj-ti/projects)
 - 📝 [Changelog](./CHANGELOG.md)
+- 🧭 [Decisões de arquitetura (ADRs)](./docs/adr/README.md)
 
 ## Como rodar localmente
 
