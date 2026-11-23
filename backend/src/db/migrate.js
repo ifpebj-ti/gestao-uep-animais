@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import { pool } from "../config/db.js";
+import { DEMO_USERS, resolverContaSemente } from "./contasSemente.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
@@ -22,42 +23,43 @@ async function getAppliedMigrations(client) {
   return new Set(rows.map((r) => r.filename));
 }
 
-// Uma conta de demonstracao por perfil, para todo mundo da equipe ter os
-// mesmos logins de teste ao rodar as migrations pela primeira vez (cada
-// maquina tem seu proprio banco local — ver docs/BACKLOG.md). O e-mail e a
-// senha de cada uma podem ser sobrescritos por variavel de ambiente
-// (SEED_<PERFIL>_EMAIL / SEED_<PERFIL>_PASSWORD, ver backend/.env.example).
-// Em um ambiente de producao de verdade, desative com SEED_DEMO_USERS=false
-// e troque a senha do admin logo no primeiro login.
-const DEMO_USERS = [
-  { envPrefix: "ADMIN", nome: "Administrador", role: "ADMIN", defaultEmail: "admin@ifpe.edu.br", defaultPassword: "admin123" },
-  { envPrefix: "PROFESSOR", nome: "Professor Demo", role: "PROFESSOR", defaultEmail: "professor@ifpe.edu.br", defaultPassword: "professor123" },
-  { envPrefix: "TECNICO", nome: "Tecnico Demo", role: "TECNICO", defaultEmail: "tecnico@ifpe.edu.br", defaultPassword: "tecnico123" },
-  { envPrefix: "ESTAGIARIO", nome: "Estagiario Demo", role: "ESTAGIARIO", defaultEmail: "estagiario@ifpe.edu.br", defaultPassword: "estagiario123" },
-  { envPrefix: "ALUNO", nome: "Aluno Demo", role: "ALUNO", defaultEmail: "aluno@ifpe.edu.br", defaultPassword: "aluno123" },
-];
-
 async function seedDemoUsers(client) {
   const habilitado = (process.env.SEED_DEMO_USERS ?? "true") !== "false";
   if (!habilitado) {
     console.log("SEED_DEMO_USERS=false — pulando criação dos usuários de demonstração.");
     return;
   }
+  const producao = process.env.NODE_ENV === "production";
 
-  for (const u of DEMO_USERS) {
-    const email = process.env[`SEED_${u.envPrefix}_EMAIL`] || u.defaultEmail;
-    const password = process.env[`SEED_${u.envPrefix}_PASSWORD`] || u.defaultPassword;
+  for (const conta of DEMO_USERS) {
+    const { email, senha, usaSenhaPadrao } = resolverContaSemente(conta);
 
-    const { rows } = await client.query("SELECT id FROM users WHERE email = $1", [email]);
-    if (rows.length > 0) continue;
+    const { rows } = await client.query("SELECT id, password_hash FROM users WHERE email = $1", [email]);
+    if (rows.length > 0) {
+      if (producao && rows[0].password_hash && (await bcrypt.compare(conta.defaultPassword, rows[0].password_hash))) {
+        console.warn(
+          `ATENÇÃO: a conta ${email} ainda usa a senha padrão de demonstração. ` +
+            "Troque a senha dela antes de liberar o ambiente."
+        );
+      }
+      continue;
+    }
 
-    const hash = await bcrypt.hash(password, 10);
+    if (producao && usaSenhaPadrao) {
+      console.warn(
+        `Conta semente ${email} NÃO criada: em produção é preciso definir ` +
+          `SEED_${conta.envPrefix}_PASSWORD com uma senha forte (a padrão é pública no repositório).`
+      );
+      continue;
+    }
+
+    const hash = await bcrypt.hash(senha, 10);
     await client.query(
       `INSERT INTO users (nome, email, password_hash, role)
        VALUES ($1, $2, $3, $4)`,
-      [u.nome, email, hash, u.role]
+      [conta.nome, email, hash, conta.role]
     );
-    console.log(`Usuário semente criado: ${email} (${u.role})`);
+    console.log(`Usuário semente criado: ${email} (${conta.role})`);
   }
 
   await vincularDemoAUeps(client);
