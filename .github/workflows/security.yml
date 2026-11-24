@@ -75,7 +75,7 @@ jobs:
           path: gitleaks-report.json
 
   # DAST — sobe o sistema no proprio runner (ambiente temporario) e roda o
-  # ZAP baseline (passivo). O relatorio fica como artefato do job.
+  # ZAP baseline (passivo) no front e na API. Os relatorios ficam como artefato.
   dast:
     runs-on: ubuntu-latest
     steps:
@@ -92,18 +92,24 @@ jobs:
           docker compose logs
           exit 1
 
-      - name: ZAP baseline (passivo)
+      - name: ZAP baseline do frontend (passivo)
         run: |
           mkdir -p zap && chmod 777 zap
           docker run --rm --network host -v "$PWD/zap:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py -t http://localhost:8080 -r zap-report.html -I
 
+      - name: ZAP baseline da API (passivo)
+        run: |
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:3000 -r zap-report-api.html -I
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: zap-report
-          path: zap/zap-report.html
+          path: zap/
 
       - name: Derrubar
         if: always()
