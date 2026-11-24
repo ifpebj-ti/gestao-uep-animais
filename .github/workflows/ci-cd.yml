@@ -243,6 +243,7 @@ jobs:
       matrix:
         service: [frontend, backend, data]
     permissions:
+      actions: write
       contents: read
       packages: write
     steps:
@@ -289,6 +290,7 @@ jobs:
           image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.meta.outputs.version }}
           severity: "CRITICAL"
           exit-code: "1"
+          db-repository: "ghcr.io/aquasecurity/trivy-db"
 
       # Gate 2: HIGH so derruba quando ja existe versao corrigida
       # (ignore-unfixed); sem correcao publicada nao ha o que atualizar.
@@ -324,7 +326,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           push: ${{ github.event_name == 'push' }}
           cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope={0}', matrix.service) || '' }}
 
   release:
     needs: [docker]
