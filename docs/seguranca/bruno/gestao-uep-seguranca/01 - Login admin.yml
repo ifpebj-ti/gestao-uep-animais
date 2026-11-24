@@ -1,0 +1,40 @@
+info:
+  name: 01 - Login admin
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "admin@ifpe.edu.br",
+        "senha": "admin123"
+      }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("login retorna 200 e um token", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.body.token).to.be.a("string");
+        });
+  actions:
+    - type: set-variable
+      phase: after-response
+      selector:
+        expression: res.body.token
+        method: jsonq
+      variable:
+        name: tokenAdmin
+        scope: runtime
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -1,0 +1,33 @@
+info:
+  name: 07 - SQLi em filtro	GET
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/animais?categoria=' OR 1=1 --"
+  params:
+    - name: categoria
+      value: "' OR 1=1 --"
+      type: query
+  body:
+    type: json
+    data: ""
+  auth:
+    type: bearer
+    token: "{{tokenAdmin}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("filtro malicioso não gera erro 500", function () {
+          expect(res.getStatus()).to.be.below(500);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -1,0 +1,27 @@
+info:
+  name: 06 - SQLi no login
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  body:
+    type: json
+    data: "{ \"email\": \"' OR 1=1 --\", \"senha\": \"x\" }"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("injeção no login não autentica e não gera 500", function () {
+          expect([400, 401]).to.include(res.getStatus());
+          expect(res.body.token).to.equal(undefined);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

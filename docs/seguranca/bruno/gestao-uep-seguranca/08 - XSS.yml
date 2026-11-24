@@ -1,0 +1,36 @@
+info:
+  name: 08 - XSS
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/ueps/1/animais"
+  body:
+    type: json
+    data: |-
+      {
+        "categoria": "VACA",
+        "sexo": "FEMEA",
+        "brinco": "<script>alert(1)</script>-{{$randomInt}}"
+      }
+  auth:
+    type: bearer
+    token: "{{tokenAdmin}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("texto malicioso é armazenado como texto", function () {
+          expect(res.getStatus()).to.equal(201);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(JSON.stringify(res.body)).to.include("<script>alert(1)</script>");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
