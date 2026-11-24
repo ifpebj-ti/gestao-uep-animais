@@ -1,0 +1,10 @@
+opencollection: 1.0.0
+
+info:
+  name: gestao-uep-seguranca
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

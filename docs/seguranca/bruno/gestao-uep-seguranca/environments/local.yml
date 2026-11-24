@@ -1,0 +1,11 @@
+name: local
+variables:
+  - name: baseUrl
+    value: http://localhost:3000/api
+    description: ""
+  - name: tokenAdmin
+    value: ""
+    description: ""
+  - name: tokenAluno
+    value: ""
+    description: ""
