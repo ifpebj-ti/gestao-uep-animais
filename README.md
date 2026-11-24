@@ -38,6 +38,54 @@ gestao-uep-animais/
 └── docker-compose.prod.yml# Ambiente de produção (imagens do GHCR)
 ```
 
+## Arquitetura
+
+Visão geral dos componentes e de como falam entre si. Detalhes na [Wiki](../../wiki) e nas decisões registradas em [`docs/adr`](./docs/adr).
+
+```mermaid
+flowchart LR
+    U([Usuário<br/>navegador])
+    G([Google OAuth<br/>contas institucionais IFPE])
+
+    subgraph VM["VM Oracle · Docker Compose"]
+        C["Caddy<br/>HTTPS Let's Encrypt<br/>proxy reverso"]
+        F["Frontend<br/>Nginx + HTML/CSS/JS"]
+        B["Backend<br/>Node.js 20 + Express<br/>JWT + RBAC"]
+        D["Serviço de dados<br/>Python 3.12 + Flask"]
+        DB[("PostgreSQL 16")]
+    end
+
+    U -->|"HTTPS<br/>APP_DOMAIN"| C
+    U -->|"HTTPS<br/>api.APP_DOMAIN"| C
+    C -->|páginas estáticas| F
+    C -->|API REST| B
+    B -->|SQL| DB
+    B -->|valida login| G
+    D -.->|relatórios, em evolução| DB
+```
+
+O navegador carrega as telas pelo domínio principal e chama a API pelo subdomínio `api.`, ambos atendidos pelo mesmo Caddy (ver [`Caddyfile`](./Caddyfile)). O serviço de dados não é exposto pelo proxy.
+
+### Fluxo de entrega (CI/CD e segurança)
+
+```mermaid
+flowchart LR
+    DEV([Dev]) -->|Pull Request| GH[GitHub]
+    GH --> CI["ci-cd.yml<br/>lint · SAST Semgrep · testes<br/>migrações · Trivy"]
+    GH --> SEC["security.yml<br/>SCA · Gitleaks · ZAP"]
+    CI -->|imagens amd64 e arm64| GHCR[(GHCR)]
+    GHCR -->|docker compose pull| VM[VM Oracle]
+```
+
+| Componente | Responsabilidade |
+|------------|------------------|
+| Caddy | HTTPS automático e roteamento por domínio (frontend e API) |
+| Frontend | Telas por perfil (aluno, técnico, estagiário, professor, diretoria); chama a API com JWT |
+| Backend | API REST, autenticação (JWT / Google), controle de acesso por perfil, regras de negócio e migrations |
+| Serviço de dados | Relatórios e processamento de dados do rebanho/estoque (hoje expõe `/health`) |
+| PostgreSQL | Banco único, volume persistente |
+
+
 ## Documentação
 
 Toda a documentação do projeto está na [Wiki](../../wiki):
@@ -138,6 +186,9 @@ O workflow [`ci-cd.yml`](./.github/workflows/ci-cd.yml) roda em todo push e pull
 6. **Análise da imagem** — Trivy bloqueia o pipeline se houver vulnerabilidade crítica
 7. **Publicação** — imagens enviadas ao GHCR (`ghcr.io/ifpebj-ti/gestao-uep-animais/<serviço>`)
 
+O workflow [`security.yml`](./.github/workflows/security.yml) roda em PRs e na `main`, e toda segunda-feira:
+**SCA** (`npm audit` e `pip-audit`), **dependency-review**, **Gitleaks** (histórico do Git) e **OWASP ZAP baseline** (DAST passivo).
+
 Tags publicadas: `main` e `sha-<commit>` a cada push na main; `X.Y.Z`, `X.Y` e `latest` em releases (`vX.Y.Z`).
 
 ## Segurança
@@ -148,6 +199,7 @@ Tags publicadas: `main` e `sha-<commit>` a cada push na main; `X.Y.Z`, `X.Y` e `
 - Controle de acesso por perfil (Diretoria > Professor > Equipe)
 - HTTPS com certificado Let's Encrypt emitido e renovado automaticamente pelo proxy Caddy; só as portas 22, 80 e 443 ficam abertas no firewall
 - Segredos fora do repositório (`.env` com `chmod 600`) e varredura de segredos (Secret Scanning) ativa no GitHub
+- SAST (Semgrep), SCA, varredura de segredos no histórico (Gitleaks) e DAST (ZAP) rodando no CI
 
 Veja a Modelagem de Ameaças e o Guia de Boas Práticas na [Wiki](../../wiki).
 
